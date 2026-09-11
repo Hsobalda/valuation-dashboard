@@ -1,0 +1,54 @@
+import pandas as pd
+import pytest
+
+from engine.quality import (
+    fcf_conversion_series,
+    gross_margin,
+    margin_stability,
+    net_margin,
+    operating_margin,
+    roic_series,
+)
+
+
+def test_roic_series():
+    nopat = pd.Series([100.0, 120.0, 90.0], index=[2020, 2021, 2022])
+    ic = pd.Series([1000.0, 1000.0, 1500.0], index=[2020, 2021, 2022])
+    roic = roic_series(nopat, ic)
+    assert roic[2020] == pytest.approx(0.10)
+    assert roic[2021] == pytest.approx(0.12)
+    assert roic[2022] == pytest.approx(0.06)
+
+
+def test_roic_ignores_nonpositive_invested_capital():
+    nopat = pd.Series([100.0], index=[2020])
+    ic = pd.Series([-50.0], index=[2020])
+    assert roic_series(nopat, ic)[2020] != roic_series(nopat, ic)[2020]  # NaN
+
+
+def test_margin_stability():
+    stable = pd.Series([0.30, 0.31, 0.29, 0.30, 0.30])
+    volatile = pd.Series([0.30, 0.45, 0.15, 0.40, 0.20])
+    assert margin_stability(stable) < margin_stability(volatile)
+
+
+def test_margin_stability_short_series_is_nan():
+    assert margin_stability(pd.Series([0.30])) != margin_stability(pd.Series([0.30]))
+
+
+def test_fcf_conversion():
+    fcf = pd.Series([80.0, 90.0], index=[2020, 2021])
+    ni = pd.Series([100.0, 100.0], index=[2020, 2021])
+    conv = fcf_conversion_series(fcf, ni)
+    assert conv[2020] == pytest.approx(0.8)
+    assert conv[2021] == pytest.approx(0.9)
+
+
+def test_margins():
+    rev = pd.Series([1000.0, 1100.0], index=[2020, 2021])
+    cogs = pd.Series([600.0, 640.0], index=[2020, 2021])
+    oi = pd.Series([200.0, 250.0], index=[2020, 2021])
+    ni = pd.Series([120.0, 160.0], index=[2020, 2021])
+    assert gross_margin(rev, cogs)[2020] == pytest.approx(0.40)
+    assert operating_margin(oi, rev)[2020] == pytest.approx(0.20)
+    assert net_margin(ni, rev)[2020] == pytest.approx(0.12)
