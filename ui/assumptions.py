@@ -27,8 +27,13 @@ def _pct_slider(label: str, min_pct: float, max_pct: float, seed_decimal: float,
     return value_pct / 100.0
 
 
-def render_assumption_panel(seed: dict) -> Assumptions:
-    """Render sliders pre-filled from evidence and return an Assumptions object."""
+def render_assumption_panel(seed: dict, ticker: str) -> Assumptions:
+    """Render sliders pre-filled from evidence and return an Assumptions object.
+
+    Widget keys include the ticker: Streamlit keeps a keyed slider's value and
+    ignores new defaults, so shared keys would carry one company's assumptions
+    over to the next.
+    """
     prov = seed.get("provenance", {})
 
     st.markdown("### 3. Assumptions (each anchored to the evidence above)")
@@ -37,42 +42,42 @@ def render_assumption_panel(seed: dict) -> Assumptions:
     with col1:
         revenue_growth = _pct_slider(
             "Revenue growth / yr", 0.0, 25.0, seed["revenue_growth"], 0.25,
-            key="revenue_growth", help=prov.get("revenue_growth"),
+            key=f"{ticker}:revenue_growth", help=prov.get("revenue_growth"),
         )
         ebit_margin = _pct_slider(
             "EBIT margin", 0.0, 75.0, seed["ebit_margin"], 0.25,
-            key="ebit_margin", help=prov.get("ebit_margin"),
+            key=f"{ticker}:ebit_margin", help=prov.get("ebit_margin"),
         )
         tax_rate = _pct_slider(
             "Tax rate", 0.0, 40.0, seed["tax_rate"], 0.25,
-            key="tax_rate", help=prov.get("tax_rate"),
+            key=f"{ticker}:tax_rate", help=prov.get("tax_rate"),
         )
     with col2:
         da_pct = _pct_slider(
             "D&A % of revenue", 0.0, 20.0, seed["da_pct_revenue"], 0.25,
-            key="da_pct_revenue", help=prov.get("da_pct_revenue"),
+            key=f"{ticker}:da_pct_revenue", help=prov.get("da_pct_revenue"),
         )
         capex_pct = _pct_slider(
             "Capex % of revenue", 0.0, 30.0, seed["capex_pct_revenue"], 0.25,
-            key="capex_pct_revenue", help=prov.get("capex_pct_revenue"),
+            key=f"{ticker}:capex_pct_revenue", help=prov.get("capex_pct_revenue"),
         )
         nwc_pct = _pct_slider(
             "Δ net working capital % of revenue", 0.0, 15.0, seed["nwc_pct_revenue"], 0.25,
-            key="nwc_pct_revenue", help=prov.get("nwc_pct_revenue"),
+            key=f"{ticker}:nwc_pct_revenue", help=prov.get("nwc_pct_revenue"),
         )
     with col3:
         fade_years = st.select_slider(
             "Moat → fade period (years)", options=[5, 10, 15, 20],
-            value=int(seed["fade_years"]), key="fade_years",
+            value=int(seed["fade_years"]), key=f"{ticker}:fade_years",
             help=prov.get("fade_years") + " · 5 = none, 10 = narrow, 20 = wide",
         )
         terminal_growth = _pct_slider(
             "Terminal growth / yr", 0.0, 5.0, seed["terminal_growth"], 0.1,
-            key="terminal_growth", help=prov.get("terminal_growth"),
+            key=f"{ticker}:terminal_growth", help=prov.get("terminal_growth"),
         )
         discount_rate = _pct_slider(
             "Discount rate (required return)", 4.0, 16.0, seed["discount_rate"], 0.1,
-            key="discount_rate", help=prov.get("discount_rate"),
+            key=f"{ticker}:discount_rate", help=prov.get("discount_rate"),
         )
         ref = seed.get("wacc_reference")
         if ref:
@@ -84,7 +89,7 @@ def render_assumption_panel(seed: dict) -> Assumptions:
 
     margin_of_safety = _pct_slider(
         "Required margin of safety", 0.0, 60.0, seed["margin_of_safety"], 1.0,
-        key="margin_of_safety", help=prov.get("margin_of_safety"),
+        key=f"{ticker}:margin_of_safety", help=prov.get("margin_of_safety"),
     )
 
     return Assumptions(

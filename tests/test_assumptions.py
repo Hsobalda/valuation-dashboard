@@ -2,6 +2,7 @@
 while still handing the model the equivalent decimal (0.60), no matter what
 percentage-point value the slider itself shows."""
 
+import pytest
 from streamlit.testing.v1 import AppTest
 
 from engine.valuation import Assumptions, run_valuation
@@ -29,7 +30,7 @@ def _panel_script():
     from ui.assumptions import render_assumption_panel
 
     seed = st.session_state["seed"]
-    st.session_state["assumptions"] = render_assumption_panel(seed)
+    st.session_state["assumptions"] = render_assumption_panel(seed, "TEST")
 
 
 def test_margin_slider_shows_and_returns_real_percentage():
@@ -73,3 +74,22 @@ def test_60pct_margin_same_model_value_however_entered():
 
     assert (result_from_seed.result.equity_value_per_share
             == result_from_slider.result.equity_value_per_share)
+
+
+def test_switching_company_reseeds_sliders():
+    def script():
+        import streamlit as st
+
+        from ui.assumptions import render_assumption_panel
+
+        ticker = st.session_state["ticker"]
+        seed = st.session_state["seeds"][ticker]
+        st.session_state["assumptions"] = render_assumption_panel(seed, ticker)
+
+    at = AppTest.from_function(script)
+    at.session_state["seeds"] = {"A": _seed(ebit_margin=0.30), "B": _seed(ebit_margin=0.04)}
+    at.session_state["ticker"] = "A"
+    at.run()
+    at.session_state["ticker"] = "B"
+    at.run()
+    assert at.session_state["assumptions"].ebit_margin == pytest.approx(0.04)

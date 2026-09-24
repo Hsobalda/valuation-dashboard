@@ -117,7 +117,7 @@ with st.expander("F. What's already priced in?", expanded=True):
 
 # --- 3. assumptions ---------------------------------------------------------
 
-assumptions = render_assumption_panel(seed)
+assumptions = render_assumption_panel(seed, ticker)
 
 # --- 4. valuation -----------------------------------------------------------
 

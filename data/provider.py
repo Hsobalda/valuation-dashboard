@@ -143,6 +143,10 @@ class YFinanceProvider:
     def _ticker(self, ticker: str):
         return self._yf.Ticker(ticker)
 
+    # Some exchanges quote prices in minor units (London in pence) while market
+    # cap and financial statements are in the major unit.
+    _MINOR_UNITS = {"GBp": "GBP", "GBX": "GBP", "ZAc": "ZAR", "ILA": "ILS"}
+
     @staticmethod
     def _normalize(raw: pd.DataFrame, mapping: dict) -> pd.DataFrame:
         out = {}
@@ -193,14 +197,17 @@ class YFinanceProvider:
             "sector": info.get("sector", ""),
             "industry": info.get("industry", ""),
             "summary": info.get("longBusinessSummary", ""),
-            "currency": info.get("currency", "USD"),
+            "currency": self._MINOR_UNITS.get(info.get("currency"), info.get("currency", "USD")),
             "beta": float(info.get("beta") or 0.0),
         }
 
     def market_data(self, ticker: str) -> dict:
         info = self._ticker(ticker).info or {}
+        price = float(info.get("currentPrice") or info.get("regularMarketPrice") or 0.0)
+        if info.get("currency") in self._MINOR_UNITS:
+            price /= 100.0
         return {
-            "price": float(info.get("currentPrice") or info.get("regularMarketPrice") or 0.0),
+            "price": price,
             "market_cap": float(info.get("marketCap") or 0.0),
             "shares_outstanding": float(info.get("sharesOutstanding") or 0.0),
             "shares_diluted": float(info.get("sharesOutstanding") or 0.0),
