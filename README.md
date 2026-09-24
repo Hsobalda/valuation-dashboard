@@ -93,7 +93,12 @@ tests/        pytest suite
 ## About
 
 Built by Oliver Baldaro, second-year Economics student at the University of
-Liverpool, to learn company valuation by building the model from scratch.
+Liverpool. I designed the valuation methodology and used AI-assisted
+development to write most of the code, then audited it myself: the commit
+history includes a cash-double-count bug and a comps benchmarking error I
+found and fixed during review. This is an active project I keep researching
+and improving as I learn more about how professional valuation models are
+built.
 
 ## Disclaimer
 
