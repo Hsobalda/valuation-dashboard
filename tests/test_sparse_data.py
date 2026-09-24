@@ -22,7 +22,7 @@ class SparseProvider(SampleProvider):
 
 def test_build_brief_tolerates_missing_columns():
     p = SparseProvider()
-    brief = build_brief(p, "AAPL")
+    brief = build_brief(p, "AAPL", reference_wacc=0.09)
     assert brief["quality"]["goodwill_pct_assets"] == 0.0
     assert brief["risk"]["flags"] == []
     assert brief["history"]["revenue_cagr"] > 0

@@ -53,7 +53,7 @@ def roic_chart(brief_quality: dict) -> go.Figure:
 
 def sensitivity_heatmap(df) -> go.Figure:
     def _is_invalid(v) -> bool:
-        return v is None or v != v  # None or NaN (terminal growth >= WACC)
+        return v is None or v != v  # None or NaN (terminal growth >= discount rate)
 
     text = [[("n/a" if _is_invalid(v) else f"{v:,.2f}") for v in row] for row in df.values.tolist()]
     fig = go.Figure(data=go.Heatmap(
@@ -64,13 +64,13 @@ def sensitivity_heatmap(df) -> go.Figure:
         colorbar=dict(title="value/share"),
         text=text,
         texttemplate="%{text}",
-        hovertemplate="WACC %{y} · g %{x}<br>%{text}<extra></extra>",
+        hovertemplate="rate %{y} · g %{x}<br>%{text}<extra></extra>",
     ))
-    fig.update_layout(**_base_layout("Sensitivity: value per share (WACC × terminal growth)",
+    fig.update_layout(**_base_layout("Sensitivity: value per share (discount rate × terminal growth)",
                                      height=360),
-                      xaxis_title="terminal growth", yaxis_title="WACC")
+                      xaxis_title="terminal growth", yaxis_title="discount rate")
     fig.add_annotation(
-        text="n/a = terminal growth ≥ WACC (mathematically invalid, perpetuity diverges)",
+        text="n/a = terminal growth ≥ discount rate (mathematically invalid, perpetuity diverges)",
         xref="paper", yref="paper", x=0, y=-0.22, showarrow=False,
         font=dict(size=11, color="gray"), align="left",
     )

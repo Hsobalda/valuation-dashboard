@@ -32,8 +32,12 @@ def _ev(m: dict) -> float:
     return m["market_cap"] + m["net_debt"] + m["minority_interest"]
 
 
-def _safe_div(num: float, den: float) -> float:
-    return num / den if den else nan
+def _multiple(num: float, den: float) -> float:
+    """A valuation multiple, or NaN when negative/undefined (e.g. loss-making P/E)."""
+    if not den:
+        return nan
+    value = num / den
+    return value if value > 0 else nan
 
 
 def comps_analysis(
@@ -59,21 +63,24 @@ def comps_analysis(
         for key in metrics:
             label, num_key, den_key = _MULTIPLES[key]
             num = ev if num_key == "ev" else m[num_key]
-            row[label] = _safe_div(num, m[den_key])
+            row[label] = _multiple(num, m[den_key])
         rows[t] = row
 
     table = pd.DataFrame.from_dict(rows, orient="index")
 
+    # The target is shown in the table but excluded from the benchmark,
+    # otherwise its own multiple pulls the median towards its current price.
+    peer_rows = table.drop(index=target_ticker, errors="ignore")
     medians = {}
     for col in table.columns:
-        med = table[col].dropna().median()
+        med = peer_rows[col].dropna().median()
         medians[col] = float(med) if not pd.isna(med) else nan
 
     # Implied value: apply each median multiple to the target's own metric and
     # bridge to a per-share equity value (EV multiples -> equity -> per share).
     implied = {}
     target = provider.fundamental_metrics(target_ticker)
-    shares = target.get("shares_outstanding") or 0.0
+    shares = target.get("shares_diluted") or 0.0
     for key in metrics:
         label, num_key, den_key = _MULTIPLES[key]
         if pd.isna(medians[label]):

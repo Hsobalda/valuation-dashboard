@@ -13,11 +13,11 @@ the user can see where every input came from before changing it.
 
 - Research brief: business overview, financial history, quality indicators, risk,
   and the current P/E, EV/EBITDA, EV/Revenue and P/B.
-- Assumption panel: growth, margins, reinvestment, WACC, terminal growth and fade
+- Assumption panel: growth, margins, reinvestment, discount rate, terminal growth and fade
   period, each labelled with its source (e.g. "FY2024 operating margin").
-- Three-stage DCF with a WACC × terminal growth sensitivity table, and a warning
+- Three-stage DCF with a discount rate × terminal growth sensitivity table, and a warning
   when terminal value makes up most of the valuation.
-- Comparables: EV/Revenue, EV/EBITDA and P/E against a chosen peer set, shown on a
+- Comparables: EV/Revenue, EV/EBITDA, P/E and P/B against a chosen peer set, shown on a
   football-field chart next to the DCF value and current price.
 - Buy price after applying a required margin of safety.
 
@@ -28,9 +28,13 @@ D&A, capex and working capital:
 
     FCFF = EBIT × (1 − t) + D&A − capex − ΔNWC
 
-The discount rate (WACC) is set by the user, starting from 8%. The engine
-includes CAPM and market-value WACC functions, which are not yet wired into the
-app.
+Cash flows are discounted at a fixed 10% required return rather than each
+company's WACC. A WACC measures what capital costs the company; the discount
+rate here is the return an investor wants before committing money, and holding
+it constant makes valuations comparable across companies. Each company's WACC
+is still calculated for reference (CAPM cost of equity with a 4% risk-free rate
+and 5% equity risk premium, cost of debt from interest expense / total debt,
+market-value weights) and used as the hurdle in the ROIC comparison.
 
 | Stage | Period | Treatment |
 |---|---|---|
@@ -45,6 +49,9 @@ equity value, which is divided by diluted shares.
 
 Quality metrics include ROIC, gross/operating/net margins, margin volatility and
 FCF conversion (FCF / net income).
+
+Comparables use the median multiple of the peer set, excluding the target itself
+and any negative multiples (e.g. P/E for a loss-making peer).
 
 ## Data
 
@@ -69,7 +76,7 @@ python -m pytest -q
 ```
 
 Tests run offline. They include a DCF checked against a hand-built spreadsheet, a
-zero-growth perpetuity check (value = FCF / WACC), and cases for sparse data and
+zero-growth perpetuity check (value = FCF / r), and cases for sparse data and
 misaligned fiscal years.
 
 ## Structure

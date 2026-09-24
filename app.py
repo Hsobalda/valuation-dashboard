@@ -62,7 +62,8 @@ if source == "sample":
 info = provider.company_info(ticker)
 market = provider.market_data(ticker)
 metrics = provider.fundamental_metrics(ticker)
-brief = build_brief(provider, ticker, reference_wacc=0.08)
+seed = derive_starting_assumptions(provider, ticker)
+brief = build_brief(provider, ticker, reference_wacc=seed["wacc_reference"]["wacc"])
 
 st.markdown(f"## {info.get('name', ticker)} ({ticker}) — {info.get('sector', '')} · {info.get('industry', '')}")
 st.caption(f"Currency: {info.get('currency', '')} · Live price: {fmt_money(metrics['price'], info.get('currency',''))}")
@@ -78,8 +79,8 @@ with st.expander("A. What is this business?", expanded=True):
 
 with st.expander("B. What has it done? (history)", expanded=True):
     b = brief["history"]
-    st.plotly_chart(charts.history_indexed_chart(b), use_container_width=True)
-    st.plotly_chart(charts.margin_chart(b), use_container_width=True)
+    st.plotly_chart(charts.history_indexed_chart(b), width="stretch")
+    st.plotly_chart(charts.margin_chart(b), width="stretch")
     st.caption(
         f"Revenue CAGR: {fmt_pct(b['revenue_cagr'])} · Latest FCF/income: "
         f"{fmt_pct(b['fcf_conversion'].dropna().iloc[-1] if b['fcf_conversion'].dropna().size else float('nan'))}"
@@ -88,7 +89,7 @@ with st.expander("B. What has it done? (history)", expanded=True):
 
 with st.expander("C. How good is it? (quality / moat)", expanded=True):
     q = brief["quality"]
-    st.plotly_chart(charts.roic_chart(q), use_container_width=True)
+    st.plotly_chart(charts.roic_chart(q), width="stretch")
     st.caption(
         f"Avg ROIC {fmt_pct(q['avg_roic'])} · ROIC > WACC in {q['years_above_wacc']} of "
         f"{q['years_total']} years · gross-margin volatility {fmt_pct(q['gross_margin_std'])} · "
@@ -111,12 +112,11 @@ with st.expander("F. What's already priced in?", expanded=True):
     st.dataframe(pd.DataFrame({
         "P/E": [f["pe"]], "EV/EBITDA": [f["ev_ebitda"]],
         "EV/Revenue": [f["ev_revenue"]], "P/B": [f["pb"]],
-    }), use_container_width=True)
+    }), width="stretch")
     st.caption("Decision this feeds: " + f["decision"] + " · " + f["what_this_means"])
 
 # --- 3. assumptions ---------------------------------------------------------
 
-seed = derive_starting_assumptions(provider, ticker)
 assumptions = render_assumption_panel(seed)
 
 # --- 4. valuation -----------------------------------------------------------
@@ -153,7 +153,7 @@ if res.terminal_share_of_ev > 0.8:
         "model is effectively a single bet on long-run growth. Stress-test it (below)."
     )
 
-st.plotly_chart(charts.sensitivity_heatmap(run.sensitivity), use_container_width=True)
+st.plotly_chart(charts.sensitivity_heatmap(run.sensitivity), width="stretch")
 
 # --- 5. comps + football field ---------------------------------------------
 
@@ -165,9 +165,9 @@ peers = st.multiselect("Peer set (your judgment call)", peer_options, default=de
 
 if peers:
     comps = comps_analysis(ticker, peers, ["ev_ebitda", "pe", "ev_revenue", "pb"], provider)
-    st.dataframe(comps.peer_table.round(1), use_container_width=True)
+    st.dataframe(comps.peer_table.round(1), width="stretch")
     st.caption("Implied per-share value from each median multiple:")
-    st.dataframe(pd.DataFrame({"implied value/share": comps.implied_values}), use_container_width=True)
+    st.dataframe(pd.DataFrame({"implied value/share": comps.implied_values}), width="stretch")
 
     dcf_vals = [v for row in run.sensitivity.values for v in row if v is not None and v == v]
     dcf_lo, dcf_hi = min(dcf_vals), max(dcf_vals)
@@ -175,7 +175,7 @@ if peers:
     ranges = {"DCF (sensitivity)": (dcf_lo, dcf_hi)}
     if comp_vals:
         ranges["Comps (multiples)"] = (min(comp_vals), max(comp_vals))
-    st.plotly_chart(charts.football_field(ranges, price, buy_zone, ccy), use_container_width=True)
+    st.plotly_chart(charts.football_field(ranges, price, buy_zone, ccy), width="stretch")
 else:
     st.caption("Add at least one peer to see the comps table and football field.")
 

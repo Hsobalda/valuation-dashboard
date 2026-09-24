@@ -1,4 +1,4 @@
-"""Two-dimensional sensitivity grid (WACC x terminal growth)."""
+"""Two-dimensional sensitivity grid (discount rate x terminal growth)."""
 
 from __future__ import annotations
 
@@ -21,22 +21,22 @@ def _frange(start: float, stop: float, step: float) -> list[float]:
 
 def sensitivity_grid(
     fcff_stage1: list[float],
-    wacc_range: tuple[float, float, float],
+    rate_range: tuple[float, float, float],
     growth_range: tuple[float, float, float],
     fade_years: int,
     **bridge_kwargs,
 ) -> pd.DataFrame:
-    """Equity value per share for each (WACC, terminal growth) combination.
+    """Equity value per share for each (discount rate, terminal growth) combination.
 
-    wacc_range / growth_range are (min, max, step). Returns a DataFrame indexed
-    by WACC (rows) and terminal growth (columns); invalid cells (WACC <= g) are
+    rate_range / growth_range are (min, max, step). Returns a DataFrame indexed
+    by discount rate (rows) and terminal growth (columns); invalid cells (rate <= g) are
     NaN.
     """
-    wacc_min, wacc_max, wacc_step = wacc_range
+    rate_min, rate_max, rate_step = rate_range
     g_min, g_max, g_step = growth_range
 
     rows: dict[float, dict[float, float | None]] = {}
-    for w in _frange(wacc_min, wacc_max, wacc_step):
+    for w in _frange(rate_min, rate_max, rate_step):
         row: dict[float, float | None] = {}
         for g in _frange(g_min, g_max, g_step):
             try:
@@ -49,6 +49,6 @@ def sensitivity_grid(
         rows[w] = row
 
     df = pd.DataFrame(rows).T
-    df.index.name = "WACC"
+    df.index.name = "discount rate"
     df.columns.name = "terminal growth"
     return df

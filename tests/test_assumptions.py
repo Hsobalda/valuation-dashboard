@@ -17,7 +17,7 @@ def _seed(ebit_margin: float = 0.20) -> dict:
         "nwc_pct_revenue": 0.0,
         "fade_years": 10,
         "terminal_growth": 0.025,
-        "wacc": 0.08,
+        "discount_rate": 0.08,
         "margin_of_safety": 0.25,
         "provenance": {"fade_years": "test fixture"},
     }

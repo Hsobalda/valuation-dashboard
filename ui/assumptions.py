@@ -70,10 +70,17 @@ def render_assumption_panel(seed: dict) -> Assumptions:
             "Terminal growth / yr", 0.0, 5.0, seed["terminal_growth"], 0.1,
             key="terminal_growth", help=prov.get("terminal_growth"),
         )
-        wacc = _pct_slider(
-            "WACC (discount rate)", 4.0, 16.0, seed["wacc"], 0.1,
-            key="wacc", help=prov.get("wacc"),
+        discount_rate = _pct_slider(
+            "Discount rate (required return)", 4.0, 16.0, seed["discount_rate"], 0.1,
+            key="discount_rate", help=prov.get("discount_rate"),
         )
+        ref = seed.get("wacc_reference")
+        if ref:
+            st.caption(
+                f"Reference WACC {ref['wacc']:.1%} · cost of equity {ref['cost_of_equity']:.1%} "
+                f"(r_f {ref['risk_free']:.1%} + β {ref['beta']:.2f} × ERP "
+                f"{ref['equity_risk_premium']:.1%}) · cost of debt {ref['cost_of_debt']:.1%}"
+            )
 
     margin_of_safety = _pct_slider(
         "Required margin of safety", 0.0, 60.0, seed["margin_of_safety"], 1.0,
@@ -89,6 +96,6 @@ def render_assumption_panel(seed: dict) -> Assumptions:
         nwc_pct_revenue=nwc_pct,
         fade_years=fade_years,
         terminal_growth=terminal_growth,
-        wacc=wacc,
+        discount_rate=discount_rate,
         margin_of_safety=margin_of_safety,
     )

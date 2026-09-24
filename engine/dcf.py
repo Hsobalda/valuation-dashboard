@@ -37,7 +37,7 @@ def _derive_exit_growth(fcff: list[float], terminal_growth: float) -> float:
 
 def dcf_3stage(
     fcff_stage1: list[float],
-    wacc: float,
+    discount_rate: float,
     fade_years: int,
     terminal_growth: float,
     net_debt: float = 0.0,
@@ -46,12 +46,12 @@ def dcf_3stage(
     stage1_growth: float | None = None,
 ) -> ValuationResult:
     """Discount FCFF through the three stages and bridge to per-share equity."""
-    if wacc <= 0:
-        raise ValueError("WACC must be positive")
-    if wacc <= terminal_growth:
+    if discount_rate <= 0:
+        raise ValueError("Discount rate must be positive")
+    if discount_rate <= terminal_growth:
         raise ValueError(
-            "WACC must exceed terminal growth for the Gordon Growth terminal "
-            f"value (got wacc={wacc:.4f}, g={terminal_growth:.4f})"
+            "Discount rate must exceed terminal growth for the Gordon Growth "
+            f"terminal value (got discount_rate={discount_rate:.4f}, g={terminal_growth:.4f})"
         )
     if shares_diluted <= 0:
         raise ValueError("shares_diluted must be positive")
@@ -61,7 +61,7 @@ def dcf_3stage(
     last_fcf = fcff_stage1[-1] if fcff_stage1 else 0.0
 
     # Stage 1 -- explicit projection, year-end discounting.
-    pv_explicit = sum(f / (1.0 + wacc) ** (t + 1) for t, f in enumerate(fcff_stage1))
+    pv_explicit = sum(f / (1.0 + discount_rate) ** (t + 1) for t, f in enumerate(fcff_stage1))
 
     # Stage 2 -- linear growth fade over fade_years.
     if stage1_growth is None:
@@ -72,12 +72,12 @@ def dcf_3stage(
     for i in range(1, fade_years + 1):
         g = stage1_growth + (terminal_growth - stage1_growth) * (i / fade_years)
         running = running * (1.0 + g)
-        pv_fade += running / (1.0 + wacc) ** (n + i)
+        pv_fade += running / (1.0 + discount_rate) ** (n + i)
 
     # Stage 3 -- Gordon Growth perpetuity on the last fade-year cash flow.
     terminal_fcf = running * (1.0 + terminal_growth)
-    terminal_value = terminal_fcf / (wacc - terminal_growth)
-    pv_terminal = terminal_value / (1.0 + wacc) ** (n + fade_years)
+    terminal_value = terminal_fcf / (discount_rate - terminal_growth)
+    pv_terminal = terminal_value / (1.0 + discount_rate) ** (n + fade_years)
 
     enterprise_value = pv_explicit + pv_fade + pv_terminal
     equity_value = enterprise_value - net_debt - minority_interest

@@ -143,7 +143,7 @@ def panel_history(provider, ticker: str) -> dict:
     }
 
 
-def panel_quality(provider, ticker: str, reference_wacc: float = 0.08) -> dict:
+def panel_quality(provider, ticker: str, reference_wacc: float) -> dict:
     inc = provider.income_statement(ticker)
     bal = provider.balance_sheet(ticker)
     cf = provider.cash_flow(ticker)
@@ -219,7 +219,7 @@ def panel_risk(provider, ticker: str) -> dict:
 
     return {
         "title": "E. What could go wrong?",
-        "decision": "discount rate + margin of safety",
+        "decision": "margin of safety",
         "net_debt_to_ebitda": nd_ebitda,
         "latest_nd_ebitda": float(nd_ebitda.dropna().iloc[-1]) if nd_ebitda.dropna().size else float("nan"),
         "debt_to_equity": float(debt_equity.dropna().iloc[-1]) if debt_equity.dropna().size else float("nan"),
@@ -227,8 +227,8 @@ def panel_risk(provider, ticker: str) -> dict:
         "flags": flags,
         "what_this_means": (
             "Higher leverage, more volatile cash flows and weaker earnings "
-            "quality all mean more uncertain value -> a higher discount rate "
-            "and a larger required margin of safety."
+            "quality all mean more uncertain value -> a larger required "
+            "margin of safety. The discount rate stays at your required return."
         ),
     }
 
@@ -271,7 +271,7 @@ def _cagr(series: pd.Series) -> float:
     return (s.iloc[-1] / s.iloc[0]) ** (1 / years) - 1.0
 
 
-def build_brief(provider, ticker: str, reference_wacc: float = 0.08) -> dict:
+def build_brief(provider, ticker: str, reference_wacc: float) -> dict:
     """Aggregate all panels into a single brief dict."""
     return {
         "business": panel_business(provider, ticker),

@@ -61,5 +61,5 @@ def test_panel_risk_tolerates_misaligned_fiscal_years():
 
 def test_build_brief_tolerates_misaligned_fiscal_years():
     p = MisalignedYearProvider()
-    brief = build_brief(p, "AAPL")
+    brief = build_brief(p, "AAPL", reference_wacc=0.09)
     assert brief["risk"]["flags"] is not None

@@ -25,7 +25,7 @@ class Assumptions:
     nwc_pct_revenue: float = 0.0
     fade_years: int = 10
     terminal_growth: float = 0.025
-    wacc: float = 0.08
+    discount_rate: float = 0.10
     margin_of_safety: float = 0.25
     years: int = 5
 
@@ -63,7 +63,7 @@ def run_valuation(
     )
     result = dcf_3stage(
         fcff,
-        wacc=assumptions.wacc,
+        discount_rate=assumptions.discount_rate,
         fade_years=assumptions.fade_years,
         terminal_growth=assumptions.terminal_growth,
         stage1_growth=assumptions.revenue_growth,
@@ -72,7 +72,7 @@ def run_valuation(
 
     grid = sensitivity_grid(
         fcff,
-        wacc_range=(assumptions.wacc - 0.02, assumptions.wacc + 0.02, 0.01),
+        rate_range=(assumptions.discount_rate - 0.02, assumptions.discount_rate + 0.02, 0.01),
         growth_range=(assumptions.terminal_growth - 0.01, assumptions.terminal_growth + 0.01, 0.005),
         fade_years=assumptions.fade_years,
         **bridge,
