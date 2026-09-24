@@ -1,7 +1,7 @@
 """Research brief panels.
 
 Each panel transforms raw normalized data into *evidence* for one decision.
-Rule (BUILD-SPEC.md §6): panels SHOW evidence and never draw the conclusion
+Panels show evidence and never draw the conclusion
 (no "wide moat" / "undervalued" verdicts). Plain-language "what this means"
 strings are descriptive, not judgmental.
 
@@ -24,18 +24,30 @@ from engine.quality import (
 )
 
 
+def _col(df: pd.DataFrame, name: str) -> pd.Series:
+    """Return a column, or a zero-valued Series if the field is absent.
+
+    Live data (yfinance) omits some statement rows entirely (e.g. `goodwill`,
+    `short_term_investments`, or `cost_of_revenue` for banks), so panels must
+    not assume every normalized column exists.
+    """
+    if name in df.columns:
+        return df[name]
+    return pd.Series(0.0, index=df.index, name=name)
+
+
 def _ebitda(income: pd.DataFrame) -> pd.Series:
-    return income["operating_income"] + income["depreciation_amortization"]
+    return income["operating_income"] + _col(income, "depreciation_amortization")
 
 
 def _fcf(cashflow: pd.DataFrame) -> pd.Series:
-    return cashflow["operating_cash_flow"] - cashflow["capital_expenditure"]
+    return _col(cashflow, "operating_cash_flow") - _col(cashflow, "capital_expenditure")
 
 
 def _effective_tax_rate(income: pd.DataFrame) -> pd.Series:
     """Per-year effective tax rate, clipped to [0, 0.5], default 0.21."""
-    pretax = income["pretax_income"]
-    tax = income["income_tax"]
+    pretax = _col(income, "pretax_income")
+    tax = _col(income, "income_tax")
     out = pd.Series(index=income.index, dtype=float)
     for y in income.index:
         if pretax[y] and pretax[y] > 0:
@@ -45,13 +57,34 @@ def _effective_tax_rate(income: pd.DataFrame) -> pd.Series:
     return out
 
 
+def _align_years(a: pd.Series, b: pd.Series) -> tuple[pd.Series, pd.Series, list[int]]:
+    """Align two statement-derived series on their common fiscal years.
+
+    Each statement (income, balance sheet, cash flow) is fetched from the
+    provider independently, so the live provider can return a different set
+    of fiscal years for one statement than another (e.g. yfinance's cash
+    flow history for a ticker can include an extra year its income
+    statement omits). Comparing or dividing unaligned series either raises
+    (`Series.__lt__` etc. require identical labels) or silently produces NaN
+    for the non-overlapping years, so callers combining series from two
+    different statements must align first.
+
+    Returns the two series restricted to their common index, plus the
+    sorted list of fiscal years present in only one of them (empty if the
+    two statements already agree on their fiscal years).
+    """
+    a_aligned, b_aligned = a.align(b, join="inner")
+    dropped = sorted(set(a.index).symmetric_difference(set(b.index)))
+    return a_aligned, b_aligned, dropped
+
+
 def _invested_capital(balance: pd.DataFrame) -> pd.Series:
     # financing approach: total debt + equity - cash - short-term investments
     return (
         balance["total_debt"]
         + balance["stockholder_equity"]
         - balance["cash_and_equiv"]
-        - balance["short_term_investments"]
+        - _col(balance, "short_term_investments")
     )
 
 
@@ -96,7 +129,7 @@ def panel_history(provider, ticker: str) -> dict:
         "revenue_idx": index100(revenue),
         "ebitda_idx": index100(ebitda),
         "ni_idx": index100(ni),
-        "gross_margin": gross_margin(inc["revenue"], inc["cost_of_revenue"]),
+        "gross_margin": gross_margin(inc["revenue"], _col(inc, "cost_of_revenue")),
         "operating_margin": operating_margin(inc["operating_income"], inc["revenue"]),
         "net_margin": net_margin(inc["net_income"], inc["revenue"]),
         "fcf_conversion": fcf_conversion_series(fcf, ni),
@@ -118,11 +151,16 @@ def panel_quality(provider, ticker: str, reference_wacc: float = 0.08) -> dict:
     nopat = inc["operating_income"] * (1.0 - _effective_tax_rate(inc))
     ic = _invested_capital(bal)
     roic = roic_series(nopat, ic)
-    gm = gross_margin(inc["revenue"], inc["cost_of_revenue"])
+    gm = gross_margin(inc["revenue"], _col(inc, "cost_of_revenue"))
     fcf_conv = fcf_conversion_series(_fcf(cf), inc["net_income"])
 
     years_above_wacc = int((roic - reference_wacc > 0).sum())
     avg_roic = float(roic.dropna().mean()) if roic.dropna().size else float("nan")
+
+    goodwill_pct = 0.0
+    ta_last = float(bal["total_assets"].iloc[-1]) if bal["total_assets"].iloc[-1] else 0.0
+    if ta_last:
+        goodwill_pct = float(_col(bal, "goodwill").iloc[-1]) / ta_last
 
     return {
         "title": "C. How good is it?",
@@ -134,10 +172,7 @@ def panel_quality(provider, ticker: str, reference_wacc: float = 0.08) -> dict:
         "years_total": int(roic.dropna().size),
         "gross_margin_std": margin_stability(gm),
         "fcf_conversion": fcf_conv,
-        "goodwill_pct_assets": float(
-            bal["goodwill"].iloc[-1] / bal["total_assets"].iloc[-1]
-            if bal["total_assets"].iloc[-1] else 0.0
-        ),
+        "goodwill_pct_assets": goodwill_pct,
         "what_this_means": (
             "A moat shows up as ROIC staying above the cost of capital for a "
             "long time. The longer the spread has held (and the more stable "
@@ -154,21 +189,31 @@ def panel_risk(provider, ticker: str) -> dict:
     info = provider.company_info(ticker)
 
     ebitda = _ebitda(inc)
-    net_debt = bal["total_debt"] - bal["cash_and_equiv"] - bal["short_term_investments"]
-    nd_ebitda = net_debt / ebitda.replace(0, pd.NA)
+    net_debt = bal["total_debt"] - bal["cash_and_equiv"] - _col(bal, "short_term_investments")
+    net_debt_a, ebitda_a, nd_ebitda_dropped = _align_years(net_debt, ebitda)
+    nd_ebitda = net_debt_a / ebitda_a.replace(0, pd.NA)
     debt_equity = bal["total_debt"] / bal["stockholder_equity"].replace(0, pd.NA)
 
     fcf = _fcf(cf)
     ni = inc["net_income"]
-    years_fcf_below_ni = int((fcf < ni).sum())
+    fcf_a, ni_a, fcf_ni_dropped = _align_years(fcf, ni)
+    years_fcf_below_ni = int((fcf_a < ni_a).sum())
 
     flags = []
+    dropped_years = sorted(set(nd_ebitda_dropped) | set(fcf_ni_dropped))
+    if dropped_years:
+        flags.append(
+            f"Data provider returned mismatched fiscal years across statements "
+            f"({', '.join(str(y) for y in dropped_years)} present in only one "
+            "statement) -- ratios below use only the overlapping years"
+        )
     if years_fcf_below_ni >= 3:
         flags.append(
             f"FCF below net income in {years_fcf_below_ni} of the last "
-            f"{len(ni)} years (earnings may be less cash-backed than they appear)"
+            f"{len(ni_a)} years (earnings may be less cash-backed than they appear)"
         )
-    goodwill_pct = bal["goodwill"].iloc[-1] / bal["total_assets"].iloc[-1] if bal["total_assets"].iloc[-1] else 0.0
+    ta_last = float(bal["total_assets"].iloc[-1]) if bal["total_assets"].iloc[-1] else 0.0
+    goodwill_pct = float(_col(bal, "goodwill").iloc[-1]) / ta_last if ta_last else 0.0
     if goodwill_pct > 0.40:
         flags.append(f"Goodwill is {goodwill_pct:.0%} of total assets (impairment sensitivity)")
 
@@ -193,7 +238,7 @@ def panel_priced_in(provider, ticker: str) -> dict:
     info = provider.company_info(ticker)
     price = m["price"]
     eps = m["eps"]
-    ev = m["market_cap"] + m["net_debt"] + m["minority_interest"] - m["cash"]
+    ev = m["market_cap"] + m["net_debt"] + m["minority_interest"]
 
     pe = price / eps if eps else float("nan")
     ev_ebitda = ev / m["ebitda"] if m["ebitda"] else float("nan")

@@ -2,6 +2,12 @@
 
 Every input carries a provenance label so the number is visibly a *choice*
 anchored to evidence, never a silent default.
+
+Convention: every slider here is displayed and dragged in real percentage
+points (e.g. 60.0 for 60%), matching its "%" label, while the value handed to
+the model is always the equivalent decimal (0.60). Seeds coming in and the
+`Assumptions` object going out are always decimals; only the on-screen slider
+itself is percentage-point scaled.
 """
 
 from __future__ import annotations
@@ -9,6 +15,16 @@ from __future__ import annotations
 import streamlit as st
 
 from engine.valuation import Assumptions
+
+
+def _pct_slider(label: str, min_pct: float, max_pct: float, seed_decimal: float,
+                 step_pct: float, key: str, help: str | None = None) -> float:
+    """A slider shown in percentage points, returning the equivalent decimal."""
+    value_pct = st.slider(
+        label, min_pct, max_pct, float(seed_decimal) * 100.0, step_pct,
+        format="%.2f%%", help=help, key=key,
+    )
+    return value_pct / 100.0
 
 
 def render_assumption_panel(seed: dict) -> Assumptions:
@@ -19,50 +35,50 @@ def render_assumption_panel(seed: dict) -> Assumptions:
 
     col1, col2, col3 = st.columns(3)
     with col1:
-        revenue_growth = st.slider(
-            "Revenue growth / yr", 0.0, 0.25, float(seed["revenue_growth"]), 0.005,
-            format="%.1f%%", help=prov.get("revenue_growth"),
-        ) / 100.0
-        ebit_margin = st.slider(
-            "EBIT margin", 0.0, 0.50, float(seed["ebit_margin"]), 0.005,
-            format="%.1f%%", help=prov.get("ebit_margin"),
-        ) / 100.0
-        tax_rate = st.slider(
-            "Tax rate", 0.0, 0.40, float(seed["tax_rate"]), 0.005,
-            format="%.1f%%", help=prov.get("tax_rate"),
-        ) / 100.0
+        revenue_growth = _pct_slider(
+            "Revenue growth / yr", 0.0, 25.0, seed["revenue_growth"], 0.25,
+            key="revenue_growth", help=prov.get("revenue_growth"),
+        )
+        ebit_margin = _pct_slider(
+            "EBIT margin", 0.0, 75.0, seed["ebit_margin"], 0.25,
+            key="ebit_margin", help=prov.get("ebit_margin"),
+        )
+        tax_rate = _pct_slider(
+            "Tax rate", 0.0, 40.0, seed["tax_rate"], 0.25,
+            key="tax_rate", help=prov.get("tax_rate"),
+        )
     with col2:
-        da_pct = st.slider(
-            "D&A % of revenue", 0.0, 0.20, float(seed["da_pct_revenue"]), 0.005,
-            format="%.1f%%", help=prov.get("da_pct_revenue"),
-        ) / 100.0
-        capex_pct = st.slider(
-            "Capex % of revenue", 0.0, 0.30, float(seed["capex_pct_revenue"]), 0.005,
-            format="%.1f%%", help=prov.get("capex_pct_revenue"),
-        ) / 100.0
-        nwc_pct = st.slider(
-            "Δ net working capital % of revenue", 0.0, 0.15, float(seed["nwc_pct_revenue"]), 0.005,
-            format="%.1f%%", help=prov.get("nwc_pct_revenue"),
-        ) / 100.0
+        da_pct = _pct_slider(
+            "D&A % of revenue", 0.0, 20.0, seed["da_pct_revenue"], 0.25,
+            key="da_pct_revenue", help=prov.get("da_pct_revenue"),
+        )
+        capex_pct = _pct_slider(
+            "Capex % of revenue", 0.0, 30.0, seed["capex_pct_revenue"], 0.25,
+            key="capex_pct_revenue", help=prov.get("capex_pct_revenue"),
+        )
+        nwc_pct = _pct_slider(
+            "Δ net working capital % of revenue", 0.0, 15.0, seed["nwc_pct_revenue"], 0.25,
+            key="nwc_pct_revenue", help=prov.get("nwc_pct_revenue"),
+        )
     with col3:
         fade_years = st.select_slider(
             "Moat → fade period (years)", options=[5, 10, 15, 20],
-            value=int(seed["fade_years"]),
+            value=int(seed["fade_years"]), key="fade_years",
             help=prov.get("fade_years") + " · 5 = none, 10 = narrow, 20 = wide",
         )
-        terminal_growth = st.slider(
-            "Terminal growth / yr", 0.0, 0.05, float(seed["terminal_growth"]), 0.005,
-            format="%.1f%%", help=prov.get("terminal_growth"),
-        ) / 100.0
-        wacc = st.slider(
-            "WACC (discount rate)", 0.04, 0.16, float(seed["wacc"]), 0.005,
-            format="%.1f%%", help=prov.get("wacc"),
-        ) / 100.0
+        terminal_growth = _pct_slider(
+            "Terminal growth / yr", 0.0, 5.0, seed["terminal_growth"], 0.1,
+            key="terminal_growth", help=prov.get("terminal_growth"),
+        )
+        wacc = _pct_slider(
+            "WACC (discount rate)", 4.0, 16.0, seed["wacc"], 0.1,
+            key="wacc", help=prov.get("wacc"),
+        )
 
-    margin_of_safety = st.slider(
-        "Required margin of safety", 0.0, 0.60, float(seed["margin_of_safety"]), 0.05,
-        format="%.0f%%", help=prov.get("margin_of_safety"),
-    ) / 100.0
+    margin_of_safety = _pct_slider(
+        "Required margin of safety", 0.0, 60.0, seed["margin_of_safety"], 1.0,
+        key="margin_of_safety", help=prov.get("margin_of_safety"),
+    )
 
     return Assumptions(
         revenue_growth=revenue_growth,

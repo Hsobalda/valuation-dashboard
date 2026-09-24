@@ -1,6 +1,6 @@
 """Three-stage discounted cash flow model with a moat-driven fade period.
 
-The model mirrors the Morningstar structure (see VALUATION-THINKING.md):
+The model follows the structure Morningstar uses for its fair value estimates:
 
   Stage 1 (years 1..n):   explicit FCFF projections (from projection.py).
   Stage 2 (n+1 .. n+f):   the moat fade -- growth decays *linearly* from the
@@ -23,7 +23,7 @@ class ValuationResult:
     pv_fade: float              # PV of Stage-2 (fade) FCFF
     pv_terminal: float          # PV of terminal value
     enterprise_value: float     # sum of the three
-    equity_value: float         # EV - net debt - minority interest + cash
+    equity_value: float         # EV - net debt - minority interest
     equity_value_per_share: float
     terminal_share_of_ev: float  # pv_terminal / EV -- warn when > 0.8
 
@@ -40,20 +40,12 @@ def dcf_3stage(
     wacc: float,
     fade_years: int,
     terminal_growth: float,
-    final_ebit_margin: float = 0.0,
     net_debt: float = 0.0,
     minority_interest: float = 0.0,
-    cash: float = 0.0,
     shares_diluted: float = 1.0,
     stage1_growth: float | None = None,
 ) -> ValuationResult:
-    """Discount FCFF through the three stages and bridge to per-share equity.
-
-    `final_ebit_margin` is accepted for spec compatibility and reserved for a
-    margin-fade extension (v1 implements growth fade only).
-    """
-    del final_ebit_margin  # reserved
-
+    """Discount FCFF through the three stages and bridge to per-share equity."""
     if wacc <= 0:
         raise ValueError("WACC must be positive")
     if wacc <= terminal_growth:
@@ -88,7 +80,7 @@ def dcf_3stage(
     pv_terminal = terminal_value / (1.0 + wacc) ** (n + fade_years)
 
     enterprise_value = pv_explicit + pv_fade + pv_terminal
-    equity_value = enterprise_value - net_debt - minority_interest + cash
+    equity_value = enterprise_value - net_debt - minority_interest
     equity_value_per_share = equity_value / shares_diluted
     terminal_share = pv_terminal / enterprise_value if enterprise_value else 0.0
 

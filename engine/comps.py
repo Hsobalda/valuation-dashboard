@@ -29,7 +29,7 @@ class CompsResult:
 
 
 def _ev(m: dict) -> float:
-    return m["market_cap"] + m["net_debt"] + m["minority_interest"] - m["cash"]
+    return m["market_cap"] + m["net_debt"] + m["minority_interest"]
 
 
 def _safe_div(num: float, den: float) -> float:
@@ -82,7 +82,7 @@ def comps_analysis(
         den = _ev(target) if den_key == "ev" else target[den_key]
         val = medians[label] * den
         if num_key == "ev":  # EV multiple -> enterprise value -> equity -> per share
-            equity = val - target["net_debt"] - target["minority_interest"] + target["cash"]
+            equity = val - target["net_debt"] - target["minority_interest"]
             val = equity / shares if shares else nan
         implied[label] = val
 

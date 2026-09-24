@@ -1,67 +1,93 @@
-# Valuation Dashboard (v1)
+# Valuation Dashboard
 
-An interactive equity valuation tool built to the [`BUILD-SPEC.md`](../BUILD-SPEC.md).
-**Research first, then judgment, then math** — the engine does the arithmetic; you do
-the analysis.
+[![CI](https://github.com/Hsobalda/valuation-dashboard/actions/workflows/ci.yml/badge.svg)](https://github.com/Hsobalda/valuation-dashboard/actions/workflows/ci.yml)
 
-## Quick start
+A Streamlit app for valuing listed companies with a three-stage DCF, cross-checked
+against trading comparables. It pulls financials from Yahoo Finance, shows the
+historical evidence, and seeds each assumption from the company's own history so
+the user can see where every input came from before changing it.
+
+<!-- Live demo: add Streamlit Community Cloud link once deployed -->
+
+## Features
+
+- Research brief: business overview, financial history, quality indicators, risk,
+  and the current P/E, EV/EBITDA, EV/Revenue and P/B.
+- Assumption panel: growth, margins, reinvestment, WACC, terminal growth and fade
+  period, each labelled with its source (e.g. "FY2024 operating margin").
+- Three-stage DCF with a WACC × terminal growth sensitivity table, and a warning
+  when terminal value makes up most of the valuation.
+- Comparables: EV/Revenue, EV/EBITDA and P/E against a chosen peer set, shown on a
+  football-field chart next to the DCF value and current price.
+- Buy price after applying a required margin of safety.
+
+## Methodology
+
+Unlevered free cash flow is projected from revenue growth, EBIT margin, tax rate,
+D&A, capex and working capital:
+
+    FCFF = EBIT × (1 − t) + D&A − capex − ΔNWC
+
+The discount rate (WACC) is set by the user, starting from 8%. The engine
+includes CAPM and market-value WACC functions, which are not yet wired into the
+app.
+
+| Stage | Period | Treatment |
+|---|---|---|
+| 1 | Years 1–n | Explicit FCFF projections |
+| 2 | Fade period | Growth declines linearly from the Stage 1 exit rate to terminal growth |
+| 3 | Terminal | Gordon Growth on the final fade-year cash flow |
+
+The length of Stage 2 reflects competitive advantage: roughly 5 years for a company
+with no moat, 10 for a narrow moat and 20 for a wide one, following the approach
+Morningstar uses. Enterprise value less net debt and minority interest gives
+equity value, which is divided by diluted shares.
+
+Quality metrics include ROIC, gross/operating/net margins, margin volatility and
+FCF conversion (FCF / net income).
+
+## Data
+
+Live data comes from Yahoo Finance via `yfinance`. If it can't be reached, the app
+falls back to bundled sample data for AAPL, MSFT, PEP, T and TSCO.L and shows a
+banner saying so. Data access sits behind a `DataProvider` interface so other
+sources can be added without changing the engine.
+
+## Running locally
 
 ```bash
 python3 -m venv .venv
-.venv/bin/pip install -r dashboard/requirements.txt
-.venv/bin/streamlit run dashboard/app.py
-```
-
-## What it does
-
-1. **Research brief** — six evidence panels (business, history, quality/moat, risk,
-   what's-priced-in) assembled from normalized financials. They show evidence, never
-   draw conclusions.
-2. **Assumption panel** — sliders pre-filled from the company's own history, each with
-   a provenance label (where the number came from). No silent defaults.
-3. **Valuation** — a 3-stage DCF where the *fade period* is your moat judgment
-   (5 = none, 10 = narrow, 20 = wide), plus a WACC × terminal-growth sensitivity
-   heatmap and a terminal-value share warning.
-4. **Comparables + football field** — pick a peer set, get median multiples, implied
-   per-share values, and a football-field chart vs. current price and buy zone.
-5. **Margin of safety** — the buy-zone price = fair value × (1 − required margin).
-
-## Data: live vs sample
-
-- **Live** — `YFinanceProvider` fetches Yahoo Finance (statements, market data, info).
-  Used automatically when a network connection to Yahoo is available.
-- **Sample** — `SampleProvider` serves bundled, clearly-labelled illustrative data for
-  `AAPL, MSFT, PEP, T, TSCO.L`. Used automatically when live data is unreachable (e.g.
-  offline/sandboxed). A banner is shown so you're never misled.
-
-The data layer is behind a `DataProvider` interface — swap in FMP / Alpha Vantage later
-without touching the engine or UI.
-
-## Structure
-
-```
-dashboard/
-├── app.py            # Streamlit entry point (wiring only, no math)
-├── engine/           # PURE valuation math -- zero I/O
-│   ├── wacc.py  projection.py  dcf.py  sensitivity.py
-│   ├── quality.py  comps.py  valuation.py
-├── data/             # data access -- the only layer touching yfinance
-│   ├── provider.py  schema.py  sample_data.py  cache.py  loader.py
-├── brief/            # research-brief evidence panels + assumption seeds
-├── ui/               # Streamlit widgets + Plotly charts
-└── tests/            # pytest (offline, deterministic)
+source .venv/bin/activate
+pip install -r requirements.txt
+streamlit run app.py
 ```
 
 ## Tests
 
 ```bash
-.venv/bin/python -m pytest dashboard/tests -q
+python -m pytest -q
 ```
 
-Includes a spreadsheet cross-check and a perpetuity sanity test (g=0 → value = FCF/WACC)
-per the acceptance criteria.
+Tests run offline. They include a DCF checked against a hand-built spreadsheet, a
+zero-growth perpetuity check (value = FCF / WACC), and cases for sparse data and
+misaligned fiscal years.
+
+## Structure
+
+```
+app.py        Streamlit entry point
+engine/       Valuation maths (no I/O): WACC, projection, DCF, sensitivity, comps, quality
+data/         Data providers, schema and caching
+brief/        Research brief panels and starting assumptions
+ui/           Streamlit widgets and Plotly charts
+tests/        pytest suite
+```
+
+## About
+
+Built by Oliver Baldaro, second-year Economics student at the University of
+Liverpool, to learn company valuation by building the model from scratch.
 
 ## Disclaimer
 
-Informational and educational only — not investment advice. Always verify sample data
-against live filings before relying on any output.
+For educational purposes only. Not investment advice.

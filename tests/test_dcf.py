@@ -20,7 +20,7 @@ def test_perpetuity_sanity_g_zero():
 
 
 def test_spreadsheet_cross_check():
-    """Independent hand-computed 5-year flat DCF (see BUILD-SPEC.md §8.2).
+    """Independent hand-computed 5-year flat DCF.
 
     fcff = [100]*5, wacc=10%, terminal growth=3%, no fade, no debt/cash,
     1 share. Hand-built in a spreadsheet; engine must match to <0.01%.
@@ -40,7 +40,7 @@ def test_spreadsheet_cross_check():
 
 
 def test_equity_bridge():
-    """EV -> equity: subtract net debt & minority interest, add cash."""
+    """EV -> equity: subtract net debt (already net of cash) and minority interest."""
     r = dcf_3stage(
         fcff_stage1=[100.0, 100.0, 100.0, 100.0, 100.0],
         wacc=0.10,
@@ -48,10 +48,9 @@ def test_equity_bridge():
         terminal_growth=0.03,
         net_debt=200.0,
         minority_interest=10.0,
-        cash=50.0,
         shares_diluted=10.0,
     )
-    expected_equity = r.enterprise_value - 200.0 - 10.0 + 50.0
+    expected_equity = r.enterprise_value - 200.0 - 10.0
     assert r.equity_value == pytest.approx(expected_equity)
     assert r.equity_value_per_share == pytest.approx(expected_equity / 10.0)
 

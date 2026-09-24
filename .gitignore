@@ -4,3 +4,12 @@ __pycache__/
 .venv/
 venv/
 .DS_Store
+
+# Secrets
+.env
+.env.*
+.streamlit/secrets.toml
+
+# Local agent tooling (symlinks into .venv)
+.agents/
+.claude/

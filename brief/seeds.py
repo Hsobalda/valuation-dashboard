@@ -9,6 +9,8 @@ from __future__ import annotations
 
 
 def _latest(df, field):
+    if field not in df.columns:
+        return 0.0
     s = df[field].dropna()
     return float(s.iloc[-1]) if s.size else 0.0
 
@@ -53,9 +55,9 @@ def derive_starting_assumptions(provider, ticker: str) -> dict:
             "da_pct_revenue": f"FY{revenue.index[-1]} D&A / revenue",
             "capex_pct_revenue": f"FY{revenue.index[-1]} capex / revenue",
             "nwc_pct_revenue": "not derived (no working-capital data) -- set if relevant",
-            "fade_years": "placeholder -- set from the moat evidence in Panel C",
-            "terminal_growth": "placeholder -- long-run GDP/inflation, 2-3%",
-            "wacc": "placeholder -- set from the risk evidence in Panel E",
-            "margin_of_safety": "placeholder -- scale by confidence (see Panel E)",
+            "fade_years": "default -- set from the moat evidence in Panel C",
+            "terminal_growth": "default -- long-run GDP/inflation, 2-3%",
+            "wacc": "default -- set from the risk evidence in Panel E",
+            "margin_of_safety": "default -- scale by confidence (see Panel E)",
         },
     }

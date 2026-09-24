@@ -1,7 +1,7 @@
 """Valuation engine -- pure math, zero I/O.
 
-Import rule (enforced by review, see BUILD-SPEC.md): nothing in this package
-may import from data/, brief/, ui/, streamlit, or yfinance.
+Nothing in this package may import from data/, brief/, ui/, streamlit, or
+yfinance, so every calculation can be tested in isolation.
 """
 
 from .dcf import ValuationResult, dcf_3stage

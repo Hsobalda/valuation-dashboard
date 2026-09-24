@@ -1,17 +1,10 @@
-"""Valuation dashboard (v1) -- Streamlit entry point.
+"""Valuation dashboard -- Streamlit entry point.
 
 Wires together the data layer, the pure engine, the research brief and the
 assumption panel. No valuation math lives here.
 """
 
 from __future__ import annotations
-
-import os
-import sys
-
-# Make the repo root (the parent of this `dashboard/` package) importable, so
-# `from ..` resolves regardless of how Streamlit launches the script.
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import streamlit as st
 import pandas as pd
@@ -136,7 +129,6 @@ try:
         assumptions=assumptions,
         net_debt=metrics["net_debt"],
         minority_interest=metrics["minority_interest"],
-        cash=metrics["cash"],
         shares_diluted=metrics["shares_diluted"],
     )
 except ValueError as e:
@@ -177,7 +169,7 @@ if peers:
     st.caption("Implied per-share value from each median multiple:")
     st.dataframe(pd.DataFrame({"implied value/share": comps.implied_values}), use_container_width=True)
 
-    dcf_vals = [v for row in run.sensitivity.values for v in row if v is not None]
+    dcf_vals = [v for row in run.sensitivity.values for v in row if v is not None and v == v]
     dcf_lo, dcf_hi = min(dcf_vals), max(dcf_vals)
     comp_vals = [v for v in comps.implied_values.values() if v is not None and v == v]
     ranges = {"DCF (sensitivity)": (dcf_lo, dcf_hi)}

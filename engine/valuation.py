@@ -42,7 +42,6 @@ def run_valuation(
     assumptions: Assumptions,
     net_debt: float = 0.0,
     minority_interest: float = 0.0,
-    cash: float = 0.0,
     shares_diluted: float = 1.0,
 ) -> ValuationRun:
     """Project FCFF, run the 3-stage DCF, and build the sensitivity grid."""
@@ -60,7 +59,6 @@ def run_valuation(
     bridge = dict(
         net_debt=net_debt,
         minority_interest=minority_interest,
-        cash=cash,
         shares_diluted=shares_diluted,
     )
     result = dcf_3stage(
