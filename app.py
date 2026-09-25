@@ -15,7 +15,7 @@ import streamlit as st
 import pandas as pd
 
 from data import MultiProvider, sample_tickers
-from brief import build_brief, captive_finance_likely, insider_summary, dcf_applicable, derive_starting_assumptions, reinvestment_history, screen_peers
+from brief import build_brief, captive_finance_likely, cyclical_commodity_likely, insider_summary, dcf_applicable, derive_starting_assumptions, reinvestment_history, screen_peers
 from engine import comps_analysis, implied_return, implied_revenue_growth, run_scenarios, run_valuation
 from ui import charts
 from ui.tables import projection_table, reinvestment_history_table
@@ -263,6 +263,17 @@ else:
             "this DCF understates the equity: treat it as a floor. Professionals value the "
             "finance arm separately, roughly at its book equity.",
             icon=":material/account_balance:",
+        )
+
+    if cyclical_commodity_likely(info):
+        st.warning(
+            f"{info.get('name', ticker)} sells a commodity it doesn't set the price of. This DCF "
+            "assumes smooth, demand-driven growth and reinvestment, which fits a cyclical "
+            "commodity producer poorly: real revenue and margins swing with the commodity "
+            "price, often sharply, in ways a straight-line growth path can't capture. Treat the "
+            "output as a rough anchor, not a precise estimate, and sanity-check the growth "
+            "assumptions against where the commodity cycle actually is.",
+            icon=":material/trending_flat:",
         )
 
     if res.equity_value_per_share <= 0:

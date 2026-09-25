@@ -155,6 +155,15 @@ def test_captive_finance_flagged_for_carmakers_and_machinery():
     assert not captive_finance_likely({"industry": "Consumer Electronics"})
 
 
+def test_cyclical_commodity_flagged_for_energy_and_materials():
+    from brief import cyclical_commodity_likely
+
+    assert cyclical_commodity_likely({"sector": "Energy"})
+    assert cyclical_commodity_likely({"sector": "Basic Materials"})
+    assert not cyclical_commodity_likely({"sector": "Technology"})
+    assert not cyclical_commodity_likely({})
+
+
 def test_net_debt_and_roic_survive_a_field_dropping_out_of_later_filings():
     """PayPal stopped filing a long-term-investments fact after 2021 once it held
     none; roic_history must keep computing later years instead of going NaN

@@ -127,7 +127,15 @@ and free cash flow history.
 
 Carmakers and machinery makers with a finance arm (Ford, GM, Caterpillar,
 Deere) get a warning: the finance arm's debt sits in net debt but the customer
-loans it funds aren't counted, so the DCF understates the equity.
+loans it funds aren't counted, so the DCF understates the equity. Energy and
+Basic Materials companies (oil, gas, mining, metals) get a warning too: they
+don't set the price of what they sell, so real revenue and margins swing with
+the commodity cycle in ways a straight-line growth path can't capture.
+
+The discount rate has a 6% floor. A low beta and heavy, cheap debt can blend
+to an implausibly low WACC (Verizon's raw blend came out near 5%), and cheap
+debt in the capital structure isn't the same thing as a genuinely low-risk
+business; the seed explains when the floor has overridden the raw calculation.
 
 Quality metrics include ROIC, gross/operating/net margins, margin volatility and
 FCF conversion (FCF / net income).

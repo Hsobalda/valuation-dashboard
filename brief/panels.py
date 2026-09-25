@@ -124,6 +124,16 @@ def captive_finance_likely(info: dict) -> bool:
     return (info.get("industry") or "") in _CAPTIVE_FINANCE_INDUSTRIES
 
 
+# A steady, smoothly-reinvesting DCF fits a commodity producer poorly: revenue
+# and margins swing with a price it doesn't set (oil, copper, gold), not with
+# the demand-driven growth the model's reinvestment logic assumes.
+_CYCLICAL_COMMODITY_SECTORS = ("Energy", "Basic Materials")
+
+
+def cyclical_commodity_likely(info: dict) -> bool:
+    return (info.get("sector") or "") in _CYCLICAL_COMMODITY_SECTORS
+
+
 def screen_peers(target: dict, candidates: list[dict]) -> list[dict]:
     """Mark each candidate peer as suggested or not, with the reason.
 

@@ -2,7 +2,7 @@ import pandas as pd
 import pytest
 
 from brief import derive_starting_assumptions
-from brief.seeds import MAX_SEED_GROWTH, moat_rating
+from brief.seeds import DISCOUNT_RANGE, MAX_SEED_GROWTH, moat_rating
 from data.provider import SampleProvider
 
 
@@ -43,6 +43,35 @@ def test_target_margin_is_halfway_to_median_so_one_bad_year_does_not_set_normal(
 def test_no_positive_roic_history_seeds_cost_of_capital():
     s = derive_starting_assumptions(_Rebound(), "AAPL")
     assert s["roic"] == s["discount_rate"]
+
+
+class _LowBetaHeavyDebt(SampleProvider):
+    """A low-beta, heavily-indebted company (Verizon's shape): CAPM alone would
+    put its cost of equity near 6.5%, but heavy, cheap debt pulls the blended
+    WACC below that -- the floor exists for exactly this combination."""
+
+    def company_info(self, ticker):
+        return {**super().company_info(ticker), "beta": 0.24}
+
+    def balance_sheet(self, ticker, period="annual"):
+        bal = super().balance_sheet(ticker).copy()
+        # wacc() weights by *market* cap, not book equity, so the debt has to
+        # dwarf market cap (not book equity) to dominate the blend
+        market_cap = super().market_data(ticker)["market_cap"]
+        bal["total_debt"] = market_cap * 4
+        return bal
+
+    def income_statement(self, ticker, period="annual"):
+        inc = super().income_statement(ticker).copy()
+        inc["interest_expense"] = inc["interest_expense"] * 0  # ~0% cost of debt: falls back to risk-free
+        return inc
+
+
+def test_discount_rate_floored_when_low_beta_and_heavy_debt_blend_too_low():
+    s = derive_starting_assumptions(_LowBetaHeavyDebt(), "AAPL")
+    assert s["wacc_reference"]["wacc"] < DISCOUNT_RANGE[0]
+    assert s["discount_rate"] == DISCOUNT_RANGE[0]
+    assert "floor was used instead" in s["provenance"]["discount_rate"]
 
 
 def test_moat_rating_from_roic_against_cost_of_capital():
