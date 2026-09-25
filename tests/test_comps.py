@@ -89,3 +89,21 @@ def test_negative_multiples_excluded():
     result = comps_analysis("TGT", ["P1", "P2", "LOSS"], ["pe"], stub)
     assert pd.isna(result.peer_table.loc["LOSS", "P/E"])
     assert result.medians["P/E"] == pytest.approx(15.0)
+
+
+def test_forward_multiples_and_missing_estimates():
+    stub = _StubProvider({
+        "TGT": {**_metrics(eps=5.0), "eps_forward": 0.0},  # no forward estimate
+        "P1": {**_metrics(eps=5.0), "eps_forward": 10.0},
+        "P2": {**_metrics(eps=5.0), "eps_forward": 5.0},
+    })
+    result = comps_analysis("TGT", ["P1", "P2"], ["pe_fwd"], stub)
+    assert result.medians["Fwd P/E"] == pytest.approx(15.0)
+    assert pd.isna(result.implied_values["Fwd P/E"])  # target has no estimate: blank, not 0
+
+
+def test_peer_reporting_in_another_currency_is_excluded():
+    stub = _StubProvider({"TGT": _metrics(eps=5.0), "P1": _metrics(eps=10.0),
+                          "ADR": {**_metrics(eps=5000.0), "currency_mismatch": True}})
+    result = comps_analysis("TGT", ["P1", "ADR"], ["pe"], stub)
+    assert "ADR" not in result.peer_table.index

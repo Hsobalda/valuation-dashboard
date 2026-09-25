@@ -48,7 +48,8 @@ def _years_since(iso_date: str | None) -> float:
 
 
 def derive_metrics(info: dict, market: dict, income: pd.DataFrame,
-                   balance: pd.DataFrame, cashflow: pd.DataFrame) -> dict:
+                   balance: pd.DataFrame, cashflow: pd.DataFrame,
+                   consensus: dict | None = None) -> dict:
     """Compute the fundamental_metrics dict from normalized statements."""
     def f(df, field):
         return _latest(df[field]) if field in df.columns else 0.0
@@ -91,6 +92,12 @@ def derive_metrics(info: dict, market: dict, income: pd.DataFrame,
         "price": market.get("price", 0.0),
         "shares_outstanding": market.get("shares_outstanding", 0.0),
         "shares_diluted": shares_diluted,
+        "eps_forward": market.get("eps_forward", 0.0),
+        # e.g. a US-listed foreign share: price in USD, statements in KRW, so
+        # per-share ratios are meaningless without FX and ADR-ratio adjustments
+        "currency_mismatch": bool(info.get("financial_currency"))
+                             and info.get("financial_currency") != info.get("currency"),
+        "revenue_forward": (consensus or {}).get("revenue_y1", 0.0),
         "years_since_fy_end": _years_since(market.get("fiscal_year_end")),
     }
 
@@ -239,6 +246,8 @@ class YFinanceProvider:
             "industry": info.get("industry", ""),
             "summary": info.get("longBusinessSummary", ""),
             "currency": self._MINOR_UNITS.get(info.get("currency"), info.get("currency", "USD")),
+            "financial_currency": self._MINOR_UNITS.get(info.get("financialCurrency"),
+                                                        info.get("financialCurrency", "")),
             "industry_key": info.get("industryKey", ""),
             "sector_key": info.get("sectorKey", ""),
             "beta": float(info.get("beta") or 0.0),
@@ -246,13 +255,18 @@ class YFinanceProvider:
 
     def market_data(self, ticker: str) -> dict:
         info = self._ticker(ticker).info or {}
-        price = float(info.get("currentPrice") or info.get("regularMarketPrice") or 0.0)
-        if info.get("currency") in self._MINOR_UNITS:
-            price /= 100.0
+        # prices and price targets share the quote currency (pence in London)
+        unit = 100.0 if info.get("currency") in self._MINOR_UNITS else 1.0
+        price = float(info.get("currentPrice") or info.get("regularMarketPrice") or 0.0) / unit
         fy_end = info.get("lastFiscalYearEnd")
         return {
             "fiscal_year_end": dt.date.fromtimestamp(fy_end).isoformat() if fy_end else None,
             "price": price,
+            "eps_forward": float(info.get("forwardEps") or 0.0),
+            "target_mean": float(info.get("targetMeanPrice") or 0.0) / unit,
+            "target_low": float(info.get("targetLowPrice") or 0.0) / unit,
+            "target_high": float(info.get("targetHighPrice") or 0.0) / unit,
+            "analyst_count": int(info.get("numberOfAnalystOpinions") or 0),
             "market_cap": float(info.get("marketCap") or 0.0),
             "shares_outstanding": float(info.get("sharesOutstanding") or 0.0),
         }
@@ -293,4 +307,5 @@ class YFinanceProvider:
             self.income_statement(ticker),
             self.balance_sheet(ticker),
             self.cash_flow(ticker),
+            self.consensus(ticker),
         )

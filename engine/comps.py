@@ -16,7 +16,9 @@ import pandas as pd
 _MULTIPLES = {
     "ev_ebitda": ("EV/EBITDA", "ev", "ebitda"),
     "pe": ("P/E", "price", "eps"),
+    "pe_fwd": ("Fwd P/E", "price", "eps_forward"),
     "ev_revenue": ("EV/Revenue", "ev", "revenue"),
+    "ev_revenue_fwd": ("Fwd EV/Revenue", "ev", "revenue_forward"),
     "pb": ("P/B", "price", "bvps"),
 }
 
@@ -58,12 +60,14 @@ def comps_analysis(
             m = provider.fundamental_metrics(t)
         except Exception:
             continue
+        if m.get("currency_mismatch"):
+            continue
         ev = _ev(m)
         row = {}
         for key in metrics:
             label, num_key, den_key = _MULTIPLES[key]
             num = ev if num_key == "ev" else m[num_key]
-            row[label] = _multiple(num, m[den_key])
+            row[label] = _multiple(num, m.get(den_key, 0.0))
         rows[t] = row
 
     table = pd.DataFrame.from_dict(rows, orient="index")
@@ -86,7 +90,10 @@ def comps_analysis(
         if pd.isna(medians[label]):
             implied[label] = nan
             continue
-        den = _ev(target) if den_key == "ev" else target[den_key]
+        den = _ev(target) if den_key == "ev" else target.get(den_key, 0.0)
+        if not den or den <= 0:  # no estimate, or losses: the multiple says nothing
+            implied[label] = nan
+            continue
         val = medians[label] * den
         if num_key == "ev":  # EV multiple -> enterprise value -> equity -> per share
             equity = val - target["net_debt"] - target["minority_interest"]

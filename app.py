@@ -102,7 +102,15 @@ with st.expander("C. How good is it? (quality / moat)", expanded=True):
 
 with st.expander("D. How does it use its cash? (capital allocation)", expanded=True):
     d = brief["capital_allocation"]
-    st.plotly_chart(charts.capital_allocation_chart(d, info.get("currency", "")), width="stretch")
+    if not dcf_applicable(info.get("industry", "")):
+        st.caption(
+            "For a bank or insurer, operating cash flow swings with loans, deposits and "
+            "claims, so free cash flow isn't a meaningful measure. Judge capital allocation "
+            "on dividends, buybacks and the share count against capital ratios instead."
+        )
+        d = {**d, "flags": []}
+    else:
+        st.plotly_chart(charts.capital_allocation_chart(d, info.get("currency", "")), width="stretch")
     st.caption(
         f"Returned to shareholders: {fmt_pct(d['payout_of_fcf'])} of free cash flow, net of "
         f"buybacks that only offset stock pay ({fmt_pct(d['sbc_share_of_buybacks'])} of buybacks) · "
@@ -138,7 +146,16 @@ price = metrics["price"]
 run = None
 buy_zone = None
 
-if not dcf_applicable(info.get("industry", "")):
+if metrics.get("currency_mismatch"):
+    st.markdown("### 3–4. Valuation")
+    st.warning(
+        f"{ticker} trades in {info.get('currency')} but reports in "
+        f"{info.get('financial_currency')} (usually a foreign company's US listing). "
+        "Per-share values can't be compared with the price without exchange-rate and "
+        "ADR-ratio adjustments, so the valuation is skipped. Try its home listing "
+        "instead, if it has one."
+    )
+elif not dcf_applicable(info.get("industry", "")):
     st.markdown("### 3–4. Valuation")
     st.info(
         f"A cash-flow DCF doesn't apply to {info.get('industry', 'this industry').lower()}: "
@@ -215,6 +232,17 @@ else:
             f"(your path averages {path_avg:.1%}), holding your other assumptions fixed."
         )
 
+    mkt = provider.market_data(ticker)
+    if mkt.get("analyst_count") and mkt.get("target_mean"):
+        gap = fair_value / mkt["target_mean"] - 1
+        st.caption(
+            f"Analysts ({mkt['analyst_count']}): mean 12-month target "
+            f"{fmt_money(mkt['target_mean'], ccy)} (range {fmt_money(mkt['target_low'], ccy)}–"
+            f"{fmt_money(mkt['target_high'], ccy)}). Your fair value is {abs(gap):.0%} "
+            f"{'above' if gap > 0 else 'below'} the street: that gap is your variant view, "
+            "so be ready to say which assumption drives it."
+        )
+
     yrs = metrics["years_since_fy_end"]
     current_nopat = metrics["revenue"] * assumptions.ebit_margin * (1 - assumptions.tax_rate)
     market_ev = metrics["market_cap"] + metrics["net_debt"] + metrics["minority_interest"]
@@ -278,11 +306,19 @@ peers = st.multiselect(
 )
 peers = list(dict.fromkeys(p.strip().upper() for p in peers if p.strip()))
 
-if peers:
-    comps = comps_analysis(ticker, peers, ["ev_ebitda", "pe", "ev_revenue", "pb"], provider)
+# enterprise-value multiples mean nothing for banks and insurers
+multiples = (["ev_ebitda", "pe", "pe_fwd", "ev_revenue", "ev_revenue_fwd", "pb"]
+             if dcf_applicable(info.get("industry", "")) else ["pe", "pe_fwd", "pb"])
+if metrics.get("currency_mismatch"):
+    st.caption("Comparables skipped for the same currency reason as the valuation.")
+elif peers:
+    comps = comps_analysis(ticker, peers, multiples, provider)
     missing = [p for p in peers if p not in comps.peer_table.index]
     if missing:
-        st.warning(f"No data for {', '.join(missing)}, so left out of the medians.")
+        st.warning(
+            f"No usable data for {', '.join(missing)} (missing, or reported in a different "
+            "currency from its share price), so left out of the medians."
+        )
     st.dataframe(comps.peer_table.round(1), width="stretch")
     st.caption("Implied per-share value from each median multiple:")
     st.dataframe(pd.DataFrame({"implied value/share": comps.implied_values}), width="stretch")
@@ -295,6 +331,9 @@ if peers:
     comp_vals = [v for v in comps.implied_values.values() if v is not None and v == v]
     if comp_vals:
         ranges["Comps (multiples)"] = (min(comp_vals), max(comp_vals))
+    mkt = provider.market_data(ticker)
+    if mkt.get("target_low") and mkt.get("target_high"):
+        ranges["Analyst targets"] = (mkt["target_low"], mkt["target_high"])
     if ranges:
         st.plotly_chart(charts.football_field(ranges, price, buy_zone, ccy), width="stretch")
 else:
