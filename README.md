@@ -113,10 +113,28 @@ ratios; valuing them properly needs exchange-rate and ADR-ratio adjustments.
 
 ## Data
 
-Live data comes from Yahoo Finance via `yfinance`. If it can't be reached, the app
-falls back to bundled sample data for AAPL, MSFT, PEP, T and TSCO.L and shows a
-banner saying so. Data access sits behind a `DataProvider` interface so other
-sources can be added without changing the engine.
+- **Financial statements for US companies** come from SEC EDGAR (XBRL data from
+  10-K filings), typically 15-19 years, with any gaps filled from Yahoo. The
+  parser merges the tags a company has used over time (e.g. Apple's switch from
+  `SalesRevenueNet` to `RevenueFromContractWithCustomer...` in 2017), keeps only
+  full fiscal years, and takes restated figures over originals.
+- **Everything else** (prices, market data, analyst estimates and targets, and
+  statements for non-US companies) comes from Yahoo Finance via `yfinance`.
+- **Offline**, the app falls back to bundled sample data for AAPL, MSFT, PEP, T
+  and TSCO.L and shows a banner saying so.
+
+Starting assumptions use the last 10 fiscal years, roughly one business cycle.
+Data access sits behind a `DataProvider` interface so other sources can be added
+without changing the engine.
+
+The SEC requires every request to carry a contact email. Set it in
+`.streamlit/secrets.toml` (git-ignored) or as an environment variable:
+
+```toml
+SEC_CONTACT_EMAIL = "you@example.com"
+```
+
+Without it the app uses Yahoo's statements only.
 
 ## Running locally
 

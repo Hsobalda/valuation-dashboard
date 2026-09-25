@@ -18,6 +18,7 @@ RISK_FREE = 0.04
 EQUITY_RISK_PREMIUM = 0.05
 
 # Margin of safety by uncertainty, on Morningstar's scale for a 5-star rating
+SEED_YEARS = 10
 MAX_SEED_GROWTH = 0.15
 GROWTH_FLOOR, GROWTH_CEILING = -0.20, 1.00  # growth slider range
 UNCERTAINTY_MOS = {"Low": 0.20, "Medium": 0.30, "High": 0.40, "Very high": 0.50}
@@ -31,7 +32,9 @@ def _latest(df, field):
 
 
 def derive_starting_assumptions(provider, ticker: str) -> dict:
-    inc = provider.income_statement(ticker)
+    # the last 10 years: roughly one business cycle, so seeds reflect today's
+    # business rather than, say, Apple's early-iPhone growth
+    inc = provider.income_statement(ticker).tail(SEED_YEARS)
 
     revenue = inc["revenue"].dropna()
     latest_rev = float(revenue.iloc[-1]) if revenue.size else 0.0
@@ -73,7 +76,7 @@ def derive_starting_assumptions(provider, ticker: str) -> dict:
 
     # no positive ROIC history -> assume new capital earns the discount rate,
     # so growth neither creates nor destroys value
-    roic_hist = roic_history(provider, ticker).dropna()
+    roic_hist = roic_history(provider, ticker).dropna().tail(SEED_YEARS)
     roic_avg = float(roic_hist.mean()) if roic_hist.size else float("nan")
     roic = min(max(roic_avg, 0.01), 1.0) if roic_avg > 0 else DISCOUNT_RATE
 
@@ -84,7 +87,7 @@ def derive_starting_assumptions(provider, ticker: str) -> dict:
 
     # fundamental growth = reinvestment rate x ROIC: the growth the company's own
     # reinvestment can fund (net capex only; excludes working capital and M&A)
-    reinvest_rate = reinvestment_history(provider, ticker)["net_capex_pct_nopat"].dropna()
+    reinvest_rate = reinvestment_history(provider, ticker)["net_capex_pct_nopat"].dropna().tail(SEED_YEARS)
     reinvest_rate = float(reinvest_rate.mean()) if reinvest_rate.size else float("nan")
 
     ref = wacc_reference(provider, ticker, tax_rate)
@@ -192,7 +195,7 @@ def uncertainty_rating(provider, ticker: str) -> dict:
     Each factor adds 0-2 points; the total maps to a rating that sets the
     margin of safety. A starting point for judgement, not a verdict.
     """
-    inc = provider.income_statement(ticker)
+    inc = provider.income_statement(ticker).tail(SEED_YEARS)
     m = provider.fundamental_metrics(ticker)
     score, reasons = 0, []
 
@@ -222,7 +225,7 @@ def uncertainty_rating(provider, ticker: str) -> dict:
     score += pts
     reasons.append(f"beta {beta:.2f} (+{pts})")
 
-    fcf = _fcf(provider.cash_flow(ticker)).dropna()
+    fcf = _fcf(provider.cash_flow(ticker)).dropna().tail(SEED_YEARS)
     negative = int((fcf < 0).sum())
     pts = 1 if negative else 0
     score += pts

@@ -7,6 +7,7 @@ assumption panel. No valuation math lives here.
 from __future__ import annotations
 
 import math
+import os
 
 import streamlit as st
 import pandas as pd
@@ -19,6 +20,13 @@ from ui.tables import projection_table, reinvestment_history_table
 from ui.assumptions import render_assumption_panel
 
 st.set_page_config(page_title="Valuation Dashboard", layout="wide")
+
+# the SEC requires a contact email on every request; kept in a git-ignored secret
+try:
+    if "SEC_CONTACT_EMAIL" in st.secrets:
+        os.environ.setdefault("SEC_CONTACT_EMAIL", st.secrets["SEC_CONTACT_EMAIL"])
+except FileNotFoundError:
+    pass
 
 
 def fmt_money(x: float, ccy: str) -> str:
@@ -54,6 +62,13 @@ try:
 except Exception as e:
     st.error(f"Could not load {ticker}: {e}")
     st.stop()
+
+if source == "live":
+    inc_years = provider.income_statement(ticker)["revenue"].dropna().index
+    st.caption(
+        f"Financial statements: {'SEC 10-K filings, gaps filled from Yahoo Finance' if provider.uses_sec_filings(ticker) else 'Yahoo Finance'}"
+        f" (FY{inc_years.min()}–FY{inc_years.max()}). Prices, estimates and targets: Yahoo Finance."
+    )
 
 if source == "sample":
     st.warning(
