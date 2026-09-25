@@ -33,22 +33,15 @@ def test_comps_medians_are_medians(provider):
     assert result.medians["P/E"] == pytest.approx(float(peers_pe.median()))
 
 
-def test_comps_implied_value_uses_target_metric(provider):
+def test_premium_is_target_multiple_over_peer_median(provider):
     result = comps_analysis(
         target_ticker="PEP",
         peers=["AAPL", "MSFT", "T"],
         metrics=["ev_ebitda", "pe"],
         provider=provider,
     )
-    m = provider.fundamental_metrics("PEP")
-    ev = m["market_cap"] + m["net_debt"] + m["minority_interest"]
-    # EV/EBITDA -> enterprise value -> bridge to per-share
-    ev_implied = result.medians["EV/EBITDA"] * m["ebitda"]
-    equity = ev_implied - m["net_debt"] - m["minority_interest"]
-    expected_ev_ps = equity / m["shares_diluted"]
-    assert result.implied_values["EV/EBITDA"] == pytest.approx(expected_ev_ps)
-    # P/E -> price per share directly
-    assert result.implied_values["P/E"] == pytest.approx(result.medians["P/E"] * m["eps"])
+    pep_pe = result.peer_table.loc["PEP", "P/E"]
+    assert result.premium["P/E"] == pytest.approx(pep_pe / result.medians["P/E"] - 1)
 
 
 def test_ev_counts_cash_once(provider):
@@ -99,7 +92,7 @@ def test_forward_multiples_and_missing_estimates():
     })
     result = comps_analysis("TGT", ["P1", "P2"], ["pe_fwd"], stub)
     assert result.medians["Fwd P/E"] == pytest.approx(15.0)
-    assert pd.isna(result.implied_values["Fwd P/E"])  # target has no estimate: blank, not 0
+    assert pd.isna(result.premium["Fwd P/E"])  # target has no estimate: blank, not 0
 
 
 def test_peer_reporting_in_another_currency_is_excluded():

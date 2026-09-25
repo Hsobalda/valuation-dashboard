@@ -98,6 +98,19 @@ def load_peer_suggestions(ticker: str, industry_key: str, sector_key: str) -> li
     return [t for t in sample_tickers() if t != ticker]
 
 
+@cache_data(ttl=86400)
+def load_peer_profile(ticker: str) -> dict | None:
+    if _live_available():
+        try:
+            return YFinanceProvider().peer_profile(ticker)
+        except Exception:
+            pass
+    try:
+        return SampleProvider().peer_profile(ticker)
+    except KeyError:
+        return None
+
+
 def sample_tickers() -> list[str]:
     return SampleProvider()._tickers()
 
@@ -137,6 +150,9 @@ class MultiProvider:
 
     def uses_sec_filings(self, ticker: str) -> bool:
         return self._get(ticker)["sec_filings"]
+
+    def peer_profiles(self, tickers: list[str]) -> list[dict]:
+        return [p for p in (load_peer_profile(t) for t in tickers) if p]
 
     def peer_suggestions(self, ticker: str) -> list[str]:
         info = self.company_info(ticker)

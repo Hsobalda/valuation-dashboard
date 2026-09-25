@@ -27,6 +27,7 @@ class DataProvider(Protocol):
     def company_info(self, ticker: str) -> dict: ...
     def fundamental_metrics(self, ticker: str) -> dict: ...
     def consensus(self, ticker: str) -> dict: ...
+    def peer_profile(self, ticker: str) -> dict: ...
 
 
 # --- shared derivation ------------------------------------------------------
@@ -132,6 +133,20 @@ class SampleProvider:
 
     def _tickers(self) -> list[str]:
         return list(COMPANIES.keys())
+
+    def peer_profile(self, ticker: str) -> dict:
+        self._check(ticker)
+        info, inc = COMPANIES[ticker]["info"], self._frames[ticker]["income"]
+        return {
+            "ticker": ticker,
+            "name": info["name"],
+            "industry": info["industry"],
+            "sector": info["sector"],
+            "market_cap": COMPANIES[ticker]["market"]["market_cap"],
+            "operating_margin": float(inc["operating_income"].iloc[-1] / inc["revenue"].iloc[-1]),
+            "reports_ebitda": True,
+            "currency_mismatch": False,
+        }
 
     def company_info(self, ticker: str) -> dict:
         self._check(ticker)
@@ -243,6 +258,7 @@ class YFinanceProvider:
         return {
             "name": info.get("shortName") or info.get("longName") or ticker,
             "sector": info.get("sector", ""),
+            "reports_ebitda": info.get("ebitda") is not None,
             "industry": info.get("industry", ""),
             "summary": info.get("longBusinessSummary", ""),
             "currency": self._MINOR_UNITS.get(info.get("currency"), info.get("currency", "USD")),
@@ -269,6 +285,22 @@ class YFinanceProvider:
             "analyst_count": int(info.get("numberOfAnalystOpinions") or 0),
             "market_cap": float(info.get("marketCap") or 0.0),
             "shares_outstanding": float(info.get("sharesOutstanding") or 0.0),
+        }
+
+    def peer_profile(self, ticker: str) -> dict:
+        """What's needed to judge a candidate peer, from one cheap info call."""
+        info = self._ticker(ticker).info or {}
+        cur = self._MINOR_UNITS.get(info.get("currency"), info.get("currency", ""))
+        fin = self._MINOR_UNITS.get(info.get("financialCurrency"), info.get("financialCurrency", ""))
+        return {
+            "ticker": ticker,
+            "name": info.get("shortName") or ticker,
+            "industry": info.get("industry", ""),
+            "sector": info.get("sector", ""),
+            "market_cap": float(info.get("marketCap") or 0.0),
+            "operating_margin": info.get("operatingMargins"),
+            "reports_ebitda": info.get("ebitda") is not None,
+            "currency_mismatch": bool(fin) and fin != cur,
         }
 
     def consensus(self, ticker: str) -> dict:

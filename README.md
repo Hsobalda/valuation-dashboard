@@ -25,14 +25,18 @@ the user can see where every input came from before changing it.
   when terminal value makes up most of the valuation.
 - Reverse DCF: the revenue growth the current share price implies, given the other
   assumptions.
-- Comparables: EV/EBITDA, P/E, forward P/E, EV/Revenue, forward EV/Revenue and P/B
-  against peers suggested from the same industry (or any tickers typed in), shown
-  on a football-field chart with the DCF range, analysts' price targets and the
-  current price.
+- Relative valuation, as context rather than a price: a candidate peer table
+  showing which companies are suggested and why, then EV/EBITDA, P/E, forward P/E,
+  EV/Revenue, forward EV/Revenue and P/B against the peer median, with the
+  target's premium or discount.
+- Football field: the DCF scenario and sensitivity ranges, analysts' price targets
+  and the current price.
 - Analyst comparison: your fair value against the mean price target, so the gap
   (your variant view) is explicit.
-- Banks and insurers are valued on comparables only, since free cash flow to the
-  firm isn't meaningful when debt is the raw material of the business.
+- Banks, lenders and insurers get no DCF, since free cash flow to the firm isn't
+  meaningful when debt is the raw material of the business. Card lenders share
+  Yahoo's "Credit Services" industry with Visa and Mastercard; they're told apart
+  because Yahoo reports no EBITDA for lenders.
 - Bear / base / bull scenarios on growth and margin, with a probability-weighted
   fair value.
 - Buy price after a margin of safety set by an uncertainty rating (Low 20%, Medium
@@ -105,8 +109,13 @@ Accounting adjustments:
   not for US GAAP companies, whose operating-lease rent is already inside EBIT;
   counting the liability as well would charge for the leases twice.
 
-Comparables use the median multiple of the peer set, excluding the target itself
-and any negative multiples (e.g. P/E for a loss-making peer). Companies whose
+Comparables are deliberately kept out of the fair value: a peer median is only as
+good as the peer set, and industry labels mix business models (Yahoo puts
+Mastercard alongside card lenders trading at a sixth of its revenue multiple).
+Candidates come from the same industry; those with a similar operating margin
+(within 1.5x, or 3 percentage points) are suggested, and the rest are shown with
+the reason they were left out. Medians exclude the target itself and any negative
+multiples (e.g. P/E for a loss-making peer). Companies whose
 share price and financial statements are in different currencies (typically a
 foreign company's US listing) are left out rather than compared on meaningless
 ratios; valuing them properly needs exchange-rate and ADR-ratio adjustments.

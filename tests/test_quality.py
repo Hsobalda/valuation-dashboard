@@ -57,11 +57,36 @@ def test_margins():
 def test_dcf_not_applied_to_banks_and_insurers():
     from brief import dcf_applicable
 
-    assert not dcf_applicable("Banks - Diversified")
-    assert not dcf_applicable("Insurance - Property & Casualty")
-    assert dcf_applicable("Credit Services")  # Visa/Mastercard: fee businesses
-    assert dcf_applicable("Consumer Electronics")
-    assert dcf_applicable("")
+    assert not dcf_applicable({"industry": "Banks - Diversified"})
+    assert not dcf_applicable({"industry": "Insurance - Property & Casualty"})
+    assert dcf_applicable({"industry": "Consumer Electronics"})
+    assert dcf_applicable({})
+
+
+def test_card_lenders_told_apart_from_payment_networks():
+    from brief import dcf_applicable
+
+    network = {"industry": "Credit Services", "sector": "Financial Services", "reports_ebitda": True}
+    lender = {"industry": "Credit Services", "sector": "Financial Services", "reports_ebitda": False}
+    assert dcf_applicable(network) and not dcf_applicable(lender)
+
+
+def test_screen_peers_keeps_similar_margins_and_explains_exclusions():
+    from brief import screen_peers
+
+    fin = {"industry": "Credit Services", "sector": "Financial Services", "reports_ebitda": True}
+    ma = {**fin, "ticker": "MA", "operating_margin": 0.61}
+    cands = [
+        {**fin, "ticker": "V", "operating_margin": 0.66},
+        {**fin, "ticker": "PYPL", "operating_margin": 0.17},
+        {**fin, "ticker": "COF", "operating_margin": 0.34, "reports_ebitda": False},
+        {**fin, "ticker": "ADR", "operating_margin": 0.60, "currency_mismatch": True},
+    ]
+    out = {c["ticker"]: c for c in screen_peers(ma, cands)}
+    assert out["V"]["suggested"]
+    assert not out["PYPL"]["suggested"] and "different business model" in out["PYPL"]["reason"]
+    assert not out["COF"]["suggested"] and "lender" in out["COF"]["reason"]
+    assert not out["ADR"]["suggested"]
 
 
 class _CapStub:
@@ -111,3 +136,12 @@ def test_stock_pay_reduces_fcf_and_offsetting_buybacks_are_not_returns():
     assert list(d["fcf"]) == [80.0, 80.0]
     assert d["payout_of_fcf"] == pytest.approx(60 / 160)
     assert d["sbc_share_of_buybacks"] == pytest.approx(0.4)
+
+
+def test_screen_peers_tolerates_small_gaps_on_thin_margins():
+    from brief import screen_peers
+
+    tesco = {"ticker": "TSCO.L", "operating_margin": 0.04}
+    out = screen_peers(tesco, [{"ticker": "ACI", "operating_margin": 0.014},
+                               {"ticker": "SFM", "operating_margin": 0.075}])
+    assert [c["suggested"] for c in out] == [True, False]

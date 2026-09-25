@@ -1,7 +1,9 @@
 """Comparable-company analysis.
 
-Values a target by benchmarking its multiples against a peer set. The peer
-*selection* is the analyst's judgment call; this module does the arithmetic.
+Relative valuation for context: how the target's multiples compare with a peer
+median. It isn't used to price the stock, because a peer median is only as good
+as the peer set (Yahoo groups Mastercard with card lenders, for example). The
+peer *selection* is the analyst's judgment call; this module does the arithmetic.
 """
 
 from __future__ import annotations
@@ -27,7 +29,7 @@ _MULTIPLES = {
 class CompsResult:
     peer_table: pd.DataFrame          # rows = tickers, cols = multiples
     medians: dict[str, float] = field(default_factory=dict)
-    implied_values: dict[str, float] = field(default_factory=dict)  # median x target metric
+    premium: dict[str, float] = field(default_factory=dict)  # target vs peer median, e.g. +0.2 = 20% above
 
 
 def _ev(m: dict) -> float:
@@ -48,7 +50,8 @@ def comps_analysis(
     metrics: list[str],
     provider,
 ) -> CompsResult:
-    """Compute multiples for the target and peers, and implied target values."""
+    """Multiples for the target and peers, peer medians, and the target's premium
+    or discount to each median."""
     tickers = []
     for t in [target_ticker, *peers]:
         if t and t not in tickers:
@@ -80,24 +83,11 @@ def comps_analysis(
         med = peer_rows[col].dropna().median()
         medians[col] = float(med) if not pd.isna(med) else nan
 
-    # Implied value: apply each median multiple to the target's own metric and
-    # bridge to a per-share equity value (EV multiples -> equity -> per share).
-    implied = {}
-    target = provider.fundamental_metrics(target_ticker)
-    shares = target.get("shares_diluted") or 0.0
-    for key in metrics:
-        label, num_key, den_key = _MULTIPLES[key]
-        if pd.isna(medians[label]):
-            implied[label] = nan
-            continue
-        den = _ev(target) if den_key == "ev" else target.get(den_key, 0.0)
-        if not den or den <= 0:  # no estimate, or losses: the multiple says nothing
-            implied[label] = nan
-            continue
-        val = medians[label] * den
-        if num_key == "ev":  # EV multiple -> enterprise value -> equity -> per share
-            equity = val - target["net_debt"] - target["minority_interest"]
-            val = equity / shares if shares else nan
-        implied[label] = val
-
-    return CompsResult(peer_table=table, medians=medians, implied_values=implied)
+    target_row = table.loc[target_ticker] if target_ticker in table.index else None
+    premium = {
+        col: (float(target_row[col] / medians[col] - 1)
+              if target_row is not None and not pd.isna(target_row[col]) and medians[col] == medians[col]
+              else nan)
+        for col in table.columns
+    }
+    return CompsResult(peer_table=table, medians=medians, premium=premium)

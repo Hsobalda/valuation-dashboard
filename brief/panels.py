@@ -97,8 +97,40 @@ def _invested_capital(balance: pd.DataFrame) -> pd.Series:
 _NO_DCF_INDUSTRIES = ("Banks", "Insurance", "Mortgage Finance", "Capital Markets")
 
 
-def dcf_applicable(industry: str) -> bool:
-    return not (industry or "").startswith(_NO_DCF_INDUSTRIES)
+def dcf_applicable(info: dict) -> bool:
+    """False for banks, insurers and lenders. Card lenders (Capital One, Synchrony)
+    share Yahoo's "Credit Services" industry with Visa and Mastercard, but Yahoo
+    reports no EBITDA for lenders, which tells them apart."""
+    if (info.get("industry") or "").startswith(_NO_DCF_INDUSTRIES):
+        return False
+    return not (info.get("sector") == "Financial Services" and not info.get("reports_ebitda", True))
+
+
+def screen_peers(target: dict, candidates: list[dict]) -> list[dict]:
+    """Mark each candidate peer as suggested or not, with the reason.
+
+    Operating margin within 1.5x either way, or within 3 percentage points for
+    thin-margin businesses like grocers, is a rough test for "same business
+    model": it separates Visa (66%) from PayPal (17%) under the same industry
+    label. Lenders are only compared with lenders.
+    """
+    out = []
+    t_margin, t_dcf = target.get("operating_margin"), dcf_applicable(target)
+    for c in candidates:
+        margin = c.get("operating_margin")
+        if c.get("currency_mismatch"):
+            ok, why = False, "reports in a different currency from its share price"
+        elif dcf_applicable(c) != t_dcf:
+            ok, why = False, "lender or insurer vs operating company" if t_dcf else "not a lender or insurer"
+        elif t_margin and margin and t_margin > 0 and margin > 0:
+            ratio = margin / t_margin
+            ok = 2 / 3 <= ratio <= 1.5 or abs(margin - t_margin) <= 0.03
+            why = (f"similar operating margin ({margin:.0%} vs {t_margin:.0%})" if ok else
+                   f"operating margin {margin:.0%} vs {t_margin:.0%}: probably a different business model")
+        else:
+            ok, why = True, "same industry; margins not comparable (a loss or missing data)"
+        out.append({**c, "suggested": ok, "reason": why})
+    return out
 
 
 def panel_business(provider, ticker: str) -> dict:

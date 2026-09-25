@@ -13,7 +13,7 @@ import streamlit as st
 import pandas as pd
 
 from data import MultiProvider, sample_tickers
-from brief import build_brief, dcf_applicable, derive_starting_assumptions, reinvestment_history
+from brief import build_brief, dcf_applicable, derive_starting_assumptions, reinvestment_history, screen_peers
 from engine import comps_analysis, implied_revenue_growth, run_scenarios, run_valuation
 from ui import charts
 from ui.tables import projection_table, reinvestment_history_table
@@ -117,7 +117,7 @@ with st.expander("C. How good is it? (quality / moat)", expanded=True):
 
 with st.expander("D. How does it use its cash? (capital allocation)", expanded=True):
     d = brief["capital_allocation"]
-    if not dcf_applicable(info.get("industry", "")):
+    if not dcf_applicable(info):
         st.caption(
             "For a bank or insurer, operating cash flow swings with loans, deposits and "
             "claims, so free cash flow isn't a meaningful measure. Judge capital allocation "
@@ -170,11 +170,11 @@ if metrics.get("currency_mismatch"):
         "ADR-ratio adjustments, so the valuation is skipped. Try its home listing "
         "instead, if it has one."
     )
-elif not dcf_applicable(info.get("industry", "")):
+elif not dcf_applicable(info):
     st.markdown("### 3–4. Valuation")
     st.info(
         f"A cash-flow DCF doesn't apply to {info.get('industry', 'this industry').lower()}: "
-        "for a bank or insurer, debt and deposits are the raw material of the business "
+        "for a bank, lender or insurer, debt and deposits are the raw material of the business "
         "rather than financing, so free cash flow to the firm isn't meaningful. Value it "
         "on P/B and P/E against peers below, judging P/B against return on equity."
     )
@@ -308,51 +308,80 @@ else:
             "that capex doesn't, which can make net capex look negative."
         )
 
-# --- 5. comps + football field ---------------------------------------------
+# --- 5. relative valuation + football field ---------------------------------
 
-st.markdown("### 5. Comparables & football field")
+st.markdown("### 5. Relative valuation (context, not part of fair value)")
 
-suggested = provider.peer_suggestions(ticker)
-peers = st.multiselect(
-    "Peer set (your judgment call)", suggested, default=suggested[:4],
-    accept_new_options=True, key=f"{ticker}:peers",
-    help="Suggestions are the largest companies in the same Yahoo industry, mostly "
-         "US-listed. Type any ticker to add it, e.g. SBRY.L for Sainsbury's.",
-)
-peers = list(dict.fromkeys(p.strip().upper() for p in peers if p.strip()))
-
-# enterprise-value multiples mean nothing for banks and insurers
-multiples = (["ev_ebitda", "pe", "pe_fwd", "ev_revenue", "ev_revenue_fwd", "pb"]
-             if dcf_applicable(info.get("industry", "")) else ["pe", "pe_fwd", "pb"])
 if metrics.get("currency_mismatch"):
     st.caption("Comparables skipped for the same currency reason as the valuation.")
-elif peers:
-    comps = comps_analysis(ticker, peers, multiples, provider)
-    missing = [p for p in peers if p not in comps.peer_table.index]
-    if missing:
-        st.warning(
-            f"No usable data for {', '.join(missing)} (missing, or reported in a different "
-            "currency from its share price), so left out of the medians."
-        )
-    st.dataframe(comps.peer_table.round(1), width="stretch")
-    st.caption("Implied per-share value from each median multiple:")
-    st.dataframe(pd.DataFrame({"implied value/share": comps.implied_values}), width="stretch")
-
-    ranges = {}
-    if run is not None:
-        dcf_vals = [v for row in run.sensitivity.values for v in row if v is not None and v == v]
-        ranges["DCF (bear–bull)"] = (scen.scenarios[0].value_per_share, scen.scenarios[-1].value_per_share)
-        ranges["DCF (sensitivity)"] = (min(dcf_vals), max(dcf_vals))
-    comp_vals = [v for v in comps.implied_values.values() if v is not None and v == v]
-    if comp_vals:
-        ranges["Comps (multiples)"] = (min(comp_vals), max(comp_vals))
-    mkt = provider.market_data(ticker)
-    if mkt.get("target_low") and mkt.get("target_high"):
-        ranges["Analyst targets"] = (mkt["target_low"], mkt["target_high"])
-    if ranges:
-        st.plotly_chart(charts.football_field(ranges, price, buy_zone, ccy), width="stretch")
 else:
-    st.caption("Add at least one peer to see the comps table and football field.")
+    target_profile = (provider.peer_profiles([ticker]) or [{}])[0]
+    screened = screen_peers(target_profile, provider.peer_profiles(provider.peer_suggestions(ticker)))
+    if screened:
+        st.markdown("#### Candidate peers")
+        st.dataframe(pd.DataFrame({
+            "Name": [c["name"] for c in screened],
+            "Industry": [c["industry"] for c in screened],
+            f"Market cap ({ccy} bn)": [f"{c['market_cap'] / 1e9:,.0f}" for c in screened],
+            "Operating margin": [fmt_pct(c["operating_margin"]) if c["operating_margin"] is not None else "—"
+                                 for c in screened],
+            "Suggested": ["Yes" if c["suggested"] else "No" for c in screened],
+            "Why": [c["reason"] for c in screened],
+        }, index=[c["ticker"] for c in screened]), width="stretch")
+        st.caption(
+            f"Candidates are the largest companies in {ticker}'s Yahoo industry (topped up from "
+            f"its sector when the industry is thin). Target operating margin: "
+            f"{fmt_pct(target_profile.get('operating_margin'))}. Suggested peers have a margin "
+            "within 1.5× of it (or within 3 points), a rough test for the same business model."
+        )
+
+    peers = st.multiselect(
+        "Peer set (your judgment call)", [c["ticker"] for c in screened],
+        default=[c["ticker"] for c in screened if c["suggested"]],
+        accept_new_options=True, key=f"{ticker}:peers",
+        help="Starts with the suggested candidates. Type any ticker to add it, e.g. SBRY.L "
+             "for Sainsbury's.",
+    )
+    peers = list(dict.fromkeys(p.strip().upper() for p in peers if p.strip()))
+
+    # enterprise-value multiples mean nothing for banks and insurers
+    multiples = (["ev_ebitda", "pe", "pe_fwd", "ev_revenue", "ev_revenue_fwd", "pb"]
+                 if dcf_applicable(info) else ["pe", "pe_fwd", "pb"])
+    if peers:
+        comps = comps_analysis(ticker, peers, multiples, provider)
+        missing = [p for p in peers if p not in comps.peer_table.index]
+        if missing:
+            st.warning(
+                f"No usable data for {', '.join(missing)} (missing, or reported in a different "
+                "currency from its share price), so left out of the medians."
+            )
+        table = comps.peer_table.map(lambda v: "—" if v != v else f"{v:,.1f}×")
+        table.loc["Peer median"] = [f"{comps.medians[c]:,.1f}×" if comps.medians[c] == comps.medians[c] else "—"
+                                    for c in table.columns]
+        table.loc[f"{ticker} vs median"] = [
+            "—" if comps.premium[c] != comps.premium[c]
+            else f"{abs(comps.premium[c]):.0%} {'premium' if comps.premium[c] > 0 else 'discount'}"
+            for c in table.columns
+        ]
+        st.dataframe(table, width="stretch")
+        st.caption(
+            "A premium isn't a sell signal and a discount isn't a buy signal: the question is "
+            "whether the business earns it (compare growth, margins and ROIC in the brief)."
+        )
+    else:
+        st.caption("No peers selected. Add tickers above to compare multiples.")
+
+ranges = {}
+if run is not None:
+    dcf_vals = [v for row in run.sensitivity.values for v in row if v is not None and v == v]
+    ranges["DCF (bear–bull)"] = (scen.scenarios[0].value_per_share, scen.scenarios[-1].value_per_share)
+    ranges["DCF (sensitivity)"] = (min(dcf_vals), max(dcf_vals))
+mkt = provider.market_data(ticker)
+if mkt.get("target_low") and mkt.get("target_high"):
+    ranges["Analyst targets"] = (mkt["target_low"], mkt["target_high"])
+if ranges:
+    st.markdown("#### Football field")
+    st.plotly_chart(charts.football_field(ranges, price, buy_zone, ccy), width="stretch")
 
 # --- 6. margin of safety ----------------------------------------------------
 
