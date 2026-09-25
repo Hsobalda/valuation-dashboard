@@ -153,3 +153,28 @@ def test_captive_finance_flagged_for_carmakers_and_machinery():
     assert captive_finance_likely({"industry": "Auto Manufacturers"})
     assert captive_finance_likely({"industry": "Farm & Heavy Construction Machinery"})
     assert not captive_finance_likely({"industry": "Consumer Electronics"})
+
+
+def test_net_debt_and_roic_survive_a_field_dropping_out_of_later_filings():
+    """PayPal stopped filing a long-term-investments fact after 2021 once it held
+    none; roic_history must keep computing later years instead of going NaN
+    forever, and must not silently subtract a stale, years-old balance."""
+    from brief.panels import _invested_capital, _net_debt, roic_history
+
+    idx = [2020, 2021, 2022, 2023]
+    bal = pd.DataFrame({
+        "total_debt": [10.0] * 4, "stockholder_equity": [20.0] * 4, "cash_and_equiv": [5.0] * 4,
+        "long_term_investments": [3.0, 3.5, float("nan"), float("nan")],
+    }, index=idx)
+    assert _net_debt(bal).tolist() == pytest.approx([2.0, 1.5, 5.0, 5.0])  # not NaN, not stale 3.5
+    assert _invested_capital(bal).tolist() == pytest.approx([22.0, 21.5, 25.0, 25.0])
+
+    class _Stub:
+        def income_statement(self, t):
+            return pd.DataFrame({"operating_income": [4.0] * 4}, index=idx)
+
+        def balance_sheet(self, t):
+            return bal
+
+    roic = roic_history(_Stub(), "X")
+    assert not roic.isna().any()

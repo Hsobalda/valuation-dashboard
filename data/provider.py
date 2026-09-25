@@ -55,6 +55,20 @@ def derive_metrics(info: dict, market: dict, income: pd.DataFrame,
     def f(df, field):
         return _latest(df[field]) if field in df.columns else 0.0
 
+    def f_additive(df, field):
+        """Like `f`, but for an optional balance-sheet field (investments,
+        minority interest) where a company reports no XBRL fact in a year it
+        holds none: that means zero for THIS year, not "unknown, so reuse the
+        last year it did report." `_latest`'s dropna()+last would instead
+        reach back to a stale, possibly years-old figure (PayPal stopped
+        reporting long-term investments after 2021; treating that gap as
+        "unknown" carried its 2021 $3.5bn balance into net debt every year
+        since, understating it by the same amount)."""
+        if field not in df.columns or df.empty:
+            return 0.0
+        v = df[field].iloc[-1]
+        return float(v) if v == v else 0.0
+
     revenue = f(income, "revenue")
     oi = f(income, "operating_income")
     da = f(income, "depreciation_amortization")
@@ -62,10 +76,10 @@ def derive_metrics(info: dict, market: dict, income: pd.DataFrame,
     eps = f(income, "eps_diluted")
     net_income = f(income, "net_income")
     cash = f(balance, "cash_and_equiv")
-    st_inv = f(balance, "short_term_investments") + f(balance, "long_term_investments")
+    st_inv = f_additive(balance, "short_term_investments") + f_additive(balance, "long_term_investments")
     debt = f(balance, "total_debt")
     equity = f(balance, "stockholder_equity")
-    minority = f(balance, "minority_interest")
+    minority = f_additive(balance, "minority_interest")
     shares = market.get("shares_outstanding", 0.0)
     # Current share count grossed up by last year's dilution ratio. Using the
     # average diluted count directly would overstate shares for companies that

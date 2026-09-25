@@ -82,9 +82,17 @@ def _align_years(a: pd.Series, b: pd.Series) -> tuple[pd.Series, pd.Series, list
 
 
 def _net_debt(balance: pd.DataFrame) -> pd.Series:
-    """Debt less cash, short-term investments and long-term marketable securities."""
+    """Debt less cash, short-term investments and long-term marketable securities.
+
+    The investment fields are optional: a company that holds none in a given
+    year simply files no XBRL fact for it, so a missing value there means zero,
+    not unknown, and must not be left as NaN (which would silently blank out
+    net debt, invested capital and ROIC for that year, as it did for PayPal
+    once it stopped reporting long-term securities after 2021).
+    """
     return (_col(balance, "total_debt") - _col(balance, "cash_and_equiv")
-            - _col(balance, "short_term_investments") - _col(balance, "long_term_investments"))
+            - _col(balance, "short_term_investments").fillna(0.0)
+            - _col(balance, "long_term_investments").fillna(0.0))
 
 
 def _invested_capital(balance: pd.DataFrame) -> pd.Series:
