@@ -31,24 +31,27 @@ _INPUTS = [
     (5, "Base-year revenue", "base_revenue", MONEY, False),
     (6, "Revenue growth, year 1", "growth_y1", PCT, True),
     (7, "Revenue growth, year 2", "growth_y2", PCT, True),
-    (8, "Revenue growth, year 5", "growth_y5", PCT, True),
-    (9, "EBIT margin, latest year", "ebit_margin", PCT, False),
-    (10, "Target EBIT margin, year 5", "target_ebit_margin", PCT, True),
-    (11, "Tax rate", "tax_rate", PCT, False),
-    (12, "ROIC (return on new capital)", "roic", PCT, True),
-    (13, "Fade period (years)", "fade_years", "0", True),
-    (14, "Lasting excess return on new capital", "terminal_excess_return", PCT, False),
-    (15, "Terminal growth", "terminal_growth", PCT, False),
-    (16, "Discount rate (required return)", "discount_rate", PCT, True),
-    (17, "Years since base fiscal year end", "years_since_fy_end", "0.00", False),
-    (18, "Mid-year convention (years)", "mid_year", "0.0", False),
-    (19, "Net debt", "net_debt", MONEY, False),
-    (20, "Minority interest", "minority_interest", MONEY, False),
-    (21, "Diluted shares", "shares_diluted", "#,##0", False),
-    (22, "Share price", "price", "#,##0.00", False),
-    (23, "Margin of safety", "margin_of_safety", PCT, False),
+    (8, "Revenue growth, year 3", "growth_y3", PCT, False),
+    (9, "Revenue growth, year 4", "growth_y4", PCT, False),
+    (10, "Revenue growth, year 5", "growth_y5", PCT, True),
+    (11, "EBIT margin, latest year", "ebit_margin", PCT, False),
+    (12, "Target EBIT margin, year 5", "target_ebit_margin", PCT, True),
+    (13, "Tax rate", "tax_rate", PCT, False),
+    (14, "ROIC (return on new capital)", "roic", PCT, True),
+    (15, "Fade period (years)", "fade_years", "0", True),
+    (16, "Lasting excess return on new capital", "terminal_excess_return", PCT, False),
+    (17, "Terminal growth", "terminal_growth", PCT, False),
+    (18, "Discount rate (required return)", "discount_rate", PCT, True),
+    (19, "Years since base fiscal year end", "years_since_fy_end", "0.00", False),
+    (20, "Mid-year convention (years)", "mid_year", "0.0", False),
+    (21, "Net debt", "net_debt", MONEY, False),
+    (22, "Minority interest", "minority_interest", MONEY, False),
+    (23, "Diluted shares", "shares_diluted", "#,##0", False),
+    (24, "Share price", "price", "#,##0.00", False),
+    (25, "Margin of safety", "margin_of_safety", PCT, False),
 ]
-I = {key: f"Inputs!$B${row}" for row, _, key, _, _ in _INPUTS}
+ROW = {key: row for row, _, key, _, _ in _INPUTS}
+I = {key: f"Inputs!$B${row}" for key, row in ROW.items()}
 
 
 def _font(color=BLACK, bold=False) -> Font:
@@ -59,7 +62,14 @@ def build_dcf_workbook(company: dict, a: Assumptions, notes: dict[str, str]) -> 
     """`company`: name, ticker, currency, base_year, base_revenue, net_debt,
     minority_interest, shares_diluted, price, years_since_fy_end, data_source.
     `notes`: where each assumption came from, shown as cell comments."""
-    values = {**company, **a.__dict__, "mid_year": 0.5}
+    path = a.growth_path()
+    values = {**company, **a.__dict__, "mid_year": 0.5,
+              "growth_y1": path[0], "growth_y2": path[1], "growth_y5": path[4]}
+    if a.growth_override is not None:  # a segment build sets every year explicitly
+        values.update(growth_y3=path[2], growth_y4=path[3])
+    else:  # otherwise years 3-4 are the straight line from year 2 to year 5
+        for key, n in (("growth_y3", 1), ("growth_y4", 2)):
+            values[key] = f"=B{ROW['growth_y2']}+(B{ROW['growth_y5']}-B{ROW['growth_y2']})*{n}/3"
     wb = Workbook()
     _inputs_sheet(wb.active, company, values, notes)
     _dcf_sheet(wb.create_sheet("DCF"), company)
@@ -86,18 +96,22 @@ def _inputs_sheet(ws, company: dict, values: dict, notes: dict[str, str]) -> Non
     for row, label, key, fmt, is_key in _INPUTS:
         ws.cell(row, 1, label).font = _font()
         cell = ws.cell(row, 2, values[key])
-        cell.font, cell.number_format = _font(BLUE), fmt
+        is_formula = isinstance(values[key], str) and values[key].startswith("=")
+        cell.font, cell.number_format = _font(BLACK if is_formula else BLUE), fmt
         if is_key:
             cell.fill = KEY_FILL
         note = notes.get(key, "")
         ws.cell(row, 3, note).font = _font()
         if note:
             cell.comment = Comment(note, "valuation-dashboard")
-    ws["C18"] = "Cash flows arrive through the year, so each is discounted half a year less"
-    ws["C17"] = "The valuation is as of today, not the last fiscal year end"
+    ws.cell(ROW["mid_year"], 3, "Cash flows arrive through the year, so each is discounted half a year less")
+    ws.cell(ROW["years_since_fy_end"], 3, "The valuation is as of today, not the last fiscal year end")
+    if not notes.get("growth_y3"):
+        for key in ("growth_y3", "growth_y4"):
+            ws.cell(ROW[key], 3, "Formula: straight line from year 2 to year 5")
     fade = DataValidation(type="list", formula1='"5,10,15,20"', allow_blank=False)
     ws.add_data_validation(fade)
-    fade.add("B13")
+    fade.add(f"B{ROW['fade_years']}")
     ws.column_dimensions["A"].width = 38
     ws.column_dimensions["B"].width = 16
     ws.column_dimensions["C"].width = 90
@@ -130,9 +144,7 @@ def _dcf_sheet(ws, company: dict) -> None:
         row = 5 + i
         ws.cell(row, 1, str(i))
         ws.cell(row, 2, "Stage 1")
-        growth = {1: f"={I['growth_y1']}", 2: f"={I['growth_y2']}"}.get(
-            i, f"={I['growth_y2']}+({I['growth_y5']}-{I['growth_y2']})*{i - 2}/3")
-        ws.cell(row, 3, growth).font = _font(GREEN)
+        ws.cell(row, 3, f"={I[f'growth_y{i}']}").font = _font(GREEN)
         ws.cell(row, 4, f"=D{row - 1}*(1+C{row})")
         ws.cell(row, 5, f"={I['ebit_margin']}+({I['target_ebit_margin']}-{I['ebit_margin']})*{i}/5")
         ws.cell(row, 6, f"=D{row}*E{row}*(1-{g})")

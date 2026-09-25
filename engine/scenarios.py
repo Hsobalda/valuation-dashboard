@@ -35,8 +35,11 @@ def run_scenarios(base_revenue: float, a: Assumptions, net_debt: float = 0.0,
     scenarios = []
     for name, prob, sign in cases:
         shift = sign * a.growth_swing
+        override = (None if a.growth_override is None
+                    else tuple(g + shift for g in a.growth_override))
         s = replace(a, growth_y1=a.growth_y1 + shift, growth_y2=a.growth_y2 + shift,
-                    growth_y5=a.growth_y5 + shift, target_ebit_margin=target + sign * a.margin_swing)
+                    growth_y5=a.growth_y5 + shift, growth_override=override,
+                    target_ebit_margin=target + sign * a.margin_swing)
         v = value_per_share(base_revenue, s, net_debt, minority_interest, shares_diluted,
                             years_since_fy_end)
         scenarios.append(Scenario(name, prob, s, max(v, 0.0)))

@@ -19,3 +19,12 @@ def test_damaged_line_is_skipped(tmp_path):
         f.write("{not json\n")
     save_entry({"ticker": "KO"}, path)
     assert [e["ticker"] for e in load_entries(path)] == ["AAPL", "KO"]
+
+
+def test_segments_round_trip_per_ticker(tmp_path):
+    from data.segments import load_segments, save_segments
+
+    rows = [{"Segment": "Services", "Revenue": 100.0}]
+    save_segments("TSCO.L", rows, tmp_path)
+    assert load_segments("TSCO.L", tmp_path) == rows
+    assert load_segments("AAPL", tmp_path) is None

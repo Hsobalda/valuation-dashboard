@@ -19,6 +19,11 @@ the user can see where every input came from before changing it.
   growth, fade period and any lasting excess return, each labelled with its source
   (e.g. "consensus of 40 analysts"). A cross-check sets historical, consensus and
   fundamental growth (reinvestment rate × ROIC) side by side.
+- Segment build: enter each business segment's revenue, growth and (optionally)
+  margin from the annual report; the company growth path and year-5 margin come
+  from their sum, so mix shift (e.g. Apple's Services growing faster, at higher
+  margins, than Products) shows up in the valuation. Saved per company in
+  `journal/segments/` (git-ignored).
 - Stage 1 projection table (revenue, margin, NOPAT, reinvestment, free cash flow)
   beside the company's actual capex, D&A and net capex history.
 - Three-stage DCF with a discount rate × terminal growth sensitivity table, and a warning

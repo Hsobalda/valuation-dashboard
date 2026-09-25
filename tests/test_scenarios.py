@@ -35,3 +35,13 @@ def test_scenario_values_floored_at_zero():
 def test_growth_path_uses_y1_y2_then_straight_line_to_y5():
     a = Assumptions(growth_y1=0.15, growth_y2=0.12, growth_y5=0.06)
     assert a.growth_path() == pytest.approx([0.15, 0.12, 0.10, 0.08, 0.06])
+
+
+def test_explicit_growth_path_overrides_anchors_and_shifts_in_scenarios():
+    path = (0.10, 0.09, 0.085, 0.08, 0.075)
+    a = Assumptions(growth_override=path, growth_swing=0.02)
+    assert a.growth_path() == list(path)
+    bear, _, bull = run_scenarios(1000.0, a).scenarios
+    assert bear.assumptions.growth_path() == pytest.approx([g - 0.02 for g in path])
+    assert bull.assumptions.growth_path() == pytest.approx([g + 0.02 for g in path])
+    assert a.with_flat_growth(0.05).growth_path() == [0.05] * 5

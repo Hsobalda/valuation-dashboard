@@ -36,3 +36,14 @@ def test_excel_matches_engine(tmp_path, fade_years):
     engine = value_per_share(m["revenue"], a, m["net_debt"], m["minority_interest"],
                              m["shares_diluted"], years_since_fy_end=0.4)
     assert _excel_value(tmp_path, a, company) == pytest.approx(engine, rel=1e-9)
+
+
+def test_excel_matches_engine_with_segment_growth_path(tmp_path):
+    m = SampleProvider().fundamental_metrics("AAPL")
+    company = dict(name="Apple", ticker="AAPL", currency="USD", base_year=2025,
+                   base_revenue=m["revenue"], net_debt=m["net_debt"],
+                   minority_interest=m["minority_interest"], shares_diluted=m["shares_diluted"],
+                   price=m["price"], years_since_fy_end=0.0, data_source="sample")
+    a = dataclasses.replace(A, growth_override=(0.06, 0.07, 0.075, 0.08, 0.082))
+    engine = value_per_share(m["revenue"], a, m["net_debt"], m["minority_interest"], m["shares_diluted"])
+    assert _excel_value(tmp_path, a, company) == pytest.approx(engine, rel=1e-9)

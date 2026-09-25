@@ -97,6 +97,7 @@ def derive_starting_assumptions(provider, ticker: str) -> dict:
         "growth_y1": g1,
         "growth_y2": g2,
         "growth_y5": g5,
+        "base_revenue": latest_rev,
         "ebit_margin": ebit_margin,
         "target_ebit_margin": target_margin,
         "tax_rate": tax_rate,

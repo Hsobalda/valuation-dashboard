@@ -22,6 +22,7 @@ class Assumptions:
     growth_y1: float = 0.05
     growth_y2: float = 0.05
     growth_y5: float = 0.05
+    growth_override: tuple[float, ...] | None = None  # explicit path, e.g. from a segment build
     ebit_margin: float = 0.20
     target_ebit_margin: float | None = None  # None: margin stays at ebit_margin
     tax_rate: float = 0.21
@@ -38,13 +39,15 @@ class Assumptions:
 
 
     def growth_path(self) -> list[float]:
+        if self.growth_override is not None:
+            return list(self.growth_override)[: self.years]
         path = [self.growth_y1, self.growth_y2]
         for t in range(3, self.years + 1):
             path.append(self.growth_y2 + (self.growth_y5 - self.growth_y2) * (t - 2) / (self.years - 2))
         return path[: self.years]
 
     def with_flat_growth(self, g: float) -> "Assumptions":
-        return replace(self, growth_y1=g, growth_y2=g, growth_y5=g)
+        return replace(self, growth_y1=g, growth_y2=g, growth_y5=g, growth_override=None)
 
 
 @dataclass

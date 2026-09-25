@@ -284,7 +284,7 @@ else:
     st.markdown("#### Scenarios")
     st.dataframe(pd.DataFrame({
         "Probability": [f"{s.probability:.0%}" for s in scen.scenarios],
-        "Growth, year 1 → 5": [f"{s.assumptions.growth_y1:.1%} → {s.assumptions.growth_y5:.1%}"
+        "Growth, year 1 → 5": [f"{s.assumptions.growth_path()[0]:.1%} → {s.assumptions.growth_path()[-1]:.1%}"
                                for s in scen.scenarios],
         "Target EBIT margin": [f"{s.assumptions.target_ebit_margin:.1%}" for s in scen.scenarios],
         "Value / share": [fmt_money(s.value_per_share, ccy) for s in scen.scenarios],
@@ -298,8 +298,8 @@ else:
     st.caption(
         f"Reinvestment = NOPAT × growth ÷ ROIC: the net capex and working capital needed "
         f"to grow if new capital earns {assumptions.roic:.1%}. Year 1: "
-        f"{assumptions.growth_y1:.1%} ÷ {assumptions.roic:.1%} = "
-        f"{assumptions.growth_y1 / assumptions.roic:.0%} of NOPAT reinvested."
+        f"{assumptions.growth_path()[0]:.1%} ÷ {assumptions.roic:.1%} = "
+        f"{assumptions.growth_path()[0] / assumptions.roic:.0%} of NOPAT reinvested."
     )
     prov = seed.get("provenance", {})
     notes = {
@@ -308,6 +308,8 @@ else:
         for k in ("growth_y1", "growth_y2", "growth_y5", "ebit_margin", "target_ebit_margin", "tax_rate",
                   "roic", "fade_years", "terminal_excess_return", "terminal_growth", "discount_rate")
     }
+    if assumptions.growth_override is not None:
+        notes.update({f"growth_y{i}": "Segment build: blended growth of the segments" for i in range(1, 6)})
     notes.update(
         base_revenue="Latest fiscal year revenue", net_debt="Total debt less cash and short-term investments",
         shares_diluted="Current shares outstanding x latest diluted/basic ratio",

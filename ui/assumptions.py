@@ -15,6 +15,7 @@ from __future__ import annotations
 import streamlit as st
 
 from engine.valuation import Assumptions
+from ui.segments import render_segment_editor
 
 
 def _pct_slider(label: str, min_pct: float, max_pct: float, seed_decimal: float,
@@ -40,12 +41,20 @@ def render_assumption_panel(seed: dict, ticker: str) -> Assumptions:
 
     col1, col2, col3 = st.columns(3)
     with col1:
-        g1 = _pct_slider("Revenue growth, year 1", -20.0, 100.0, seed["growth_y1"], 0.25,
-                         key=f"{ticker}:growth_y1", help=prov.get("growth_y1"))
-        g2 = _pct_slider("Revenue growth, year 2", -20.0, 100.0, seed["growth_y2"], 0.25,
-                         key=f"{ticker}:growth_y2", help=prov.get("growth_y2"))
-        g5 = _pct_slider("Revenue growth, year 5 (your view)", -20.0, 100.0, seed["growth_y5"], 0.25,
-                         key=f"{ticker}:growth_y5", help=prov.get("growth_y5"))
+        use_segments = st.toggle(
+            "Build revenue from segments", key=f"{ticker}:use_segments",
+            help="Model each business segment's growth separately and sum them (see below)",
+        )
+        if use_segments:
+            g1, g2, g5 = seed["growth_y1"], seed["growth_y2"], seed["growth_y5"]
+            st.caption("Growth path comes from the segment build below.")
+        else:
+            g1 = _pct_slider("Revenue growth, year 1", -20.0, 100.0, seed["growth_y1"], 0.25,
+                             key=f"{ticker}:growth_y1", help=prov.get("growth_y1"))
+            g2 = _pct_slider("Revenue growth, year 2", -20.0, 100.0, seed["growth_y2"], 0.25,
+                             key=f"{ticker}:growth_y2", help=prov.get("growth_y2"))
+            g5 = _pct_slider("Revenue growth, year 5 (your view)", -20.0, 100.0, seed["growth_y5"], 0.25,
+                             key=f"{ticker}:growth_y5", help=prov.get("growth_y5"))
         ev = seed.get("growth_evidence")
         if ev:
             parts = [f"historical {ev['historical']:.1%} a year"]
@@ -112,6 +121,17 @@ def render_assumption_panel(seed: dict, ticker: str) -> Assumptions:
     ) or seed["uncertainty"]
     margin_of_safety = mos_by_rating[rating]
 
+    growth_override = None
+    if use_segments:
+        built = render_segment_editor(seed, ticker)
+        if built:
+            growth_override, blended_margin = built
+            if blended_margin is not None and st.checkbox(
+                f"Use the blended year-5 margin ({blended_margin:.1%}) as the target EBIT margin",
+                key=f"{ticker}:use_segment_margin",
+            ):
+                target_margin = blended_margin
+
     s1, s2, s3 = st.columns(3)
     with s1:
         growth_swing = _pct_slider(
@@ -133,6 +153,7 @@ def render_assumption_panel(seed: dict, ticker: str) -> Assumptions:
         growth_y1=g1,
         growth_y2=g2,
         growth_y5=g5,
+        growth_override=growth_override,
         terminal_excess_return=excess,
         ebit_margin=ebit_margin,
         target_ebit_margin=target_margin,
