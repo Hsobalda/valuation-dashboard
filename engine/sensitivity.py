@@ -24,7 +24,7 @@ def sensitivity_grid(
     rate_range: tuple[float, float, float],
     growth_range: tuple[float, float, float],
     fade_years: int,
-    **bridge_kwargs,
+    **dcf_kwargs,
 ) -> pd.DataFrame:
     """Equity value per share for each (discount rate, terminal growth) combination.
 
@@ -41,7 +41,7 @@ def sensitivity_grid(
         for g in _frange(g_min, g_max, g_step):
             try:
                 result = dcf_3stage(
-                    fcff_stage1, w, fade_years, g, **bridge_kwargs
+                    fcff_stage1, w, fade_years, g, **dcf_kwargs
                 )
                 row[g] = round(result.equity_value_per_share, 2)
             except ValueError:

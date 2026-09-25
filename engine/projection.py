@@ -1,7 +1,18 @@
-"""Stage-1 free-cash-flow projection. Pure, deterministic, no I/O."""
+"""Stage-1 projection. Pure, deterministic, no I/O."""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
 
 
-def project_fcff(
+@dataclass
+class Projection:
+    revenue: list[float]
+    nopat: list[float]
+    fcff: list[float]
+
+
+def project(
     base_revenue: float,
     revenue_growth: float,
     ebit_margin: float,
@@ -10,29 +21,29 @@ def project_fcff(
     capex_pct_revenue: float,
     nwc_pct_revenue: float,
     years: int = 5,
-) -> list[float]:
-    """Project unlevered free cash flow to the firm (FCFF) for `years` years.
+    target_margin: float | None = None,
+) -> Projection:
+    """Project revenue, NOPAT and unlevered free cash flow (FCFF) for `years` years.
 
-    FCFF = EBIT * (1 - tax) + D&A - CapEx - change in net working capital.
-
-    Each ratio (margin, D&A, capex, NWC) is applied as a % of revenue, which is
-    the standard simplified analyst projection (drivers-as-%-of-revenue). The
-    change in NWC is driven by the *change* in revenue, so in a flat year it is
-    zero.
-
-    Returns a list of FCFF, one per year (year 1 .. year `years`).
+    FCFF = EBIT * (1 - tax) + D&A - CapEx - change in net working capital, with
+    each driver a % of revenue. The EBIT margin moves in a straight line from
+    `ebit_margin` (year 0) to `target_margin` by the final year, so a margin
+    that is temporarily high or low can revert to a normal level; with no target
+    it stays flat. The change in NWC is driven by the change in revenue.
     """
-    fcffs = []
-    prev_revenue = base_revenue
-    revenue = base_revenue
-    for _ in range(years):
+    if target_margin is None:
+        target_margin = ebit_margin
+    out = Projection([], [], [])
+    prev_revenue = revenue = base_revenue
+    for t in range(1, years + 1):
         revenue = revenue * (1.0 + revenue_growth)
-        ebit = revenue * ebit_margin
-        nopat = ebit * (1.0 - tax_rate)
+        margin = ebit_margin + (target_margin - ebit_margin) * t / years
+        nopat = revenue * margin * (1.0 - tax_rate)
         da = revenue * da_pct_revenue
         capex = revenue * capex_pct_revenue
         delta_nwc = (revenue - prev_revenue) * nwc_pct_revenue
-        fcff = nopat + da - capex - delta_nwc
-        fcffs.append(fcff)
+        out.revenue.append(revenue)
+        out.nopat.append(nopat)
+        out.fcff.append(nopat + da - capex - delta_nwc)
         prev_revenue = revenue
-    return fcffs
+    return out

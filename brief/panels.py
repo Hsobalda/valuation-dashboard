@@ -153,14 +153,18 @@ def panel_history(provider, ticker: str) -> dict:
     }
 
 
+def roic_history(provider, ticker: str) -> pd.Series:
+    inc = provider.income_statement(ticker)
+    nopat = _col(inc, "operating_income") * (1.0 - _effective_tax_rate(inc))
+    return roic_series(nopat, _invested_capital(provider.balance_sheet(ticker)))
+
+
 def panel_quality(provider, ticker: str, reference_wacc: float) -> dict:
     inc = provider.income_statement(ticker)
     bal = provider.balance_sheet(ticker)
     cf = provider.cash_flow(ticker)
 
-    nopat = _col(inc, "operating_income") * (1.0 - _effective_tax_rate(inc))
-    ic = _invested_capital(bal)
-    roic = roic_series(nopat, ic)
+    roic = roic_history(provider, ticker)
     gm = gross_margin(_col(inc, "revenue"), _col(inc, "cost_of_revenue"))
     fcf_conv = fcf_conversion_series(_fcf(cf), _col(inc, "net_income"))
 

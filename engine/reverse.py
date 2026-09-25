@@ -4,27 +4,7 @@ from __future__ import annotations
 
 from dataclasses import replace
 
-from .dcf import dcf_3stage
-from .projection import project_fcff
-from .valuation import Assumptions
-
-
-def _value_per_share(growth: float, base_revenue: float, a: Assumptions,
-                     net_debt: float, minority_interest: float,
-                     shares_diluted: float) -> float:
-    a = replace(a, revenue_growth=growth)
-    fcff = project_fcff(
-        base_revenue=base_revenue, revenue_growth=a.revenue_growth,
-        ebit_margin=a.ebit_margin, tax_rate=a.tax_rate,
-        da_pct_revenue=a.da_pct_revenue, capex_pct_revenue=a.capex_pct_revenue,
-        nwc_pct_revenue=a.nwc_pct_revenue, years=a.years,
-    )
-    return dcf_3stage(
-        fcff, discount_rate=a.discount_rate, fade_years=a.fade_years,
-        terminal_growth=a.terminal_growth, net_debt=net_debt,
-        minority_interest=minority_interest, shares_diluted=shares_diluted,
-        stage1_growth=growth,
-    ).equity_value_per_share
+from .valuation import Assumptions, value_per_share
 
 
 def implied_revenue_growth(
@@ -38,12 +18,13 @@ def implied_revenue_growth(
     high: float = 0.40,
 ) -> float | None:
     """Stage-1 revenue growth at which DCF value equals `price`, holding every
-    other assumption fixed. Returns None if the price can't be reached within
-    [low, high] growth, i.e. the market is pricing in something outside that range.
+    other assumption fixed. Returns None if no growth in [low, high] reaches the
+    price. When ROIC is below the discount rate, extra growth lowers value, so
+    the price may be unreachable through growth at all.
     """
     def gap(g: float) -> float:
-        return _value_per_share(g, base_revenue, assumptions, net_debt,
-                                minority_interest, shares_diluted) - price
+        a = replace(assumptions, revenue_growth=g)
+        return value_per_share(base_revenue, a, net_debt, minority_interest, shares_diluted) - price
 
     gap_low, gap_high = gap(low), gap(high)
     if gap_low * gap_high > 0:

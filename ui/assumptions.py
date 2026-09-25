@@ -48,6 +48,10 @@ def render_assumption_panel(seed: dict, ticker: str) -> Assumptions:
             "EBIT margin", 0.0, 75.0, seed["ebit_margin"], 0.25,
             key=f"{ticker}:ebit_margin", help=prov.get("ebit_margin"),
         )
+        target_margin = _pct_slider(
+            "Target EBIT margin (year 5)", 0.0, 75.0, seed["target_ebit_margin"], 0.25,
+            key=f"{ticker}:target_ebit_margin", help=prov.get("target_ebit_margin"),
+        )
         tax_rate = _pct_slider(
             "Tax rate", 0.0, 40.0, seed["tax_rate"], 0.25,
             key=f"{ticker}:tax_rate", help=prov.get("tax_rate"),
@@ -66,10 +70,15 @@ def render_assumption_panel(seed: dict, ticker: str) -> Assumptions:
             key=f"{ticker}:nwc_pct_revenue", help=prov.get("nwc_pct_revenue"),
         )
     with col3:
+        roic = _pct_slider(
+            "ROIC today", 1.0, 100.0, seed["roic"], 0.5,
+            key=f"{ticker}:roic", help=prov.get("roic"),
+        )
         fade_years = st.select_slider(
             "Moat → fade period (years)", options=[5, 10, 15, 20],
             value=int(seed["fade_years"]), key=f"{ticker}:fade_years",
-            help=prov.get("fade_years") + " · 5 = none, 10 = narrow, 20 = wide",
+            help=prov.get("fade_years") + " · 5 = none, 10 = narrow, 20 = wide. Over this "
+                 "period growth fades to terminal growth and ROIC fades to the discount rate.",
         )
         terminal_growth = _pct_slider(
             "Terminal growth / yr", 0.0, 5.0, seed["terminal_growth"], 0.1,
@@ -95,6 +104,8 @@ def render_assumption_panel(seed: dict, ticker: str) -> Assumptions:
     return Assumptions(
         revenue_growth=revenue_growth,
         ebit_margin=ebit_margin,
+        target_ebit_margin=target_margin,
+        roic=roic,
         tax_rate=tax_rate,
         da_pct_revenue=da_pct,
         capex_pct_revenue=capex_pct,

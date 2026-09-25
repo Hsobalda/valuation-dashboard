@@ -5,7 +5,7 @@ yfinance, so every calculation can be tested in isolation.
 """
 
 from .dcf import ValuationResult, dcf_3stage
-from .projection import project_fcff
+from .projection import Projection, project
 from .reverse import implied_revenue_growth
 from .quality import (
     fcf_conversion_series,
@@ -16,7 +16,7 @@ from .quality import (
     roic_series,
 )
 from .sensitivity import sensitivity_grid
-from .valuation import Assumptions, ValuationRun, run_valuation
+from .valuation import Assumptions, ValuationRun, run_valuation, value_per_share
 from .wacc import cost_of_equity, wacc
 from .comps import CompsResult, comps_analysis
 
@@ -27,7 +27,9 @@ __all__ = [
     "ValuationRun",
     "cost_of_equity",
     "wacc",
-    "project_fcff",
+    "Projection",
+    "project",
+    "value_per_share",
     "implied_revenue_growth",
     "dcf_3stage",
     "sensitivity_grid",

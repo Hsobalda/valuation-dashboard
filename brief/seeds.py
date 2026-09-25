@@ -7,7 +7,11 @@ operating margin"). The analyst overrides them; the override is the point.
 
 from __future__ import annotations
 
+import pandas as pd
+
 from engine.wacc import cost_of_equity, wacc
+
+from .panels import roic_history
 
 DISCOUNT_RATE = 0.10  # required return: the hurdle every investment must clear
 RISK_FREE = 0.04
@@ -35,6 +39,14 @@ def derive_starting_assumptions(provider, ticker: str) -> dict:
         cagr = (revenue.iloc[-1] / revenue.iloc[0]) ** (1 / (revenue.size - 1)) - 1.0
 
     ebit_margin = _latest(inc, "operating_income") / latest_rev if latest_rev else 0.0
+    # normalised margin: the average over the history, so one unusual year
+    # isn't projected forever
+    margins = ((inc["operating_income"] / inc["revenue"]).dropna()
+               if "operating_income" in inc.columns else pd.Series(dtype=float))
+    target_margin = float(margins.mean()) if margins.size else ebit_margin
+
+    roic_hist = roic_history(provider, ticker).dropna()
+    roic = min(max(float(roic_hist.mean()), 0.01), 1.0) if roic_hist.size else DISCOUNT_RATE
     da_pct = _latest(inc, "depreciation_amortization") / latest_rev if latest_rev else 0.0
     capex_pct = _latest(cf, "capital_expenditure") / latest_rev if latest_rev else 0.0
 
@@ -48,10 +60,12 @@ def derive_starting_assumptions(provider, ticker: str) -> dict:
     return {
         "revenue_growth": cagr,
         "ebit_margin": ebit_margin,
+        "target_ebit_margin": target_margin,
         "tax_rate": tax_rate,
         "da_pct_revenue": da_pct,
         "capex_pct_revenue": capex_pct,
         "nwc_pct_revenue": 0.0,  # not derivable from this schema; analyst sets it
+        "roic": roic,
         "fade_years": 10,
         "terminal_growth": 0.025,
         "discount_rate": DISCOUNT_RATE,
@@ -60,6 +74,16 @@ def derive_starting_assumptions(provider, ticker: str) -> dict:
         "provenance": {
             "revenue_growth": f"revenue CAGR {revenue.index[0]}-{revenue.index[-1]}",
             "ebit_margin": f"FY{revenue.index[-1]} operating margin",
+            "target_ebit_margin": (
+                f"average operating margin FY{margins.index[0]}-{margins.index[-1]}; "
+                "the margin moves here in a straight line by year 5"
+                if margins.size else "no margin history: set to the latest margin"
+            ),
+            "roic": (
+                f"average ROIC FY{roic_hist.index[0]}-{roic_hist.index[-1]} (Panel C); "
+                "fades to the discount rate over the fade period"
+                if roic_hist.size else "no ROIC history: set to the discount rate (no excess returns)"
+            ),
             "tax_rate": f"FY{revenue.index[-1]} effective tax rate",
             "da_pct_revenue": f"FY{revenue.index[-1]} D&A / revenue",
             "capex_pct_revenue": f"FY{revenue.index[-1]} capex / revenue",

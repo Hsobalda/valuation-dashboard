@@ -94,3 +94,34 @@ def test_nonpositive_shares_raises():
     with pytest.raises(ValueError):
         dcf_3stage([100.0], discount_rate=0.10, fade_years=0, terminal_growth=0.03,
                    shares_diluted=0.0)
+
+
+def test_roic_fade_hand_computed():
+    """One fade year, worked by hand.
+
+    Stage 1: FCFF 100 in year 1              -> PV 100 / 1.1
+    Fade year: g = 2%, ROIC fades 20% -> 10%
+        NOPAT 100 * 1.02 = 102, reinvest g/ROIC = 20% -> FCF 81.6 -> PV 81.6 / 1.1^2
+    Terminal: NOPAT 102 * 1.02 = 104.04, reinvest 2%/10% = 20% -> 83.232
+        TV = 83.232 / (10% - 2%) = 1040.4       -> PV 1040.4 / 1.1^2
+    """
+    r = dcf_3stage([100.0], discount_rate=0.10, fade_years=1, terminal_growth=0.02,
+                   stage1_growth=0.04, nopat_last=100.0, roic_start=0.20)
+    expected = 100 / 1.1 + 81.6 / 1.1 ** 2 + 1040.4 / 1.1 ** 2
+    assert r.enterprise_value == pytest.approx(expected)
+
+
+def test_terminal_growth_adds_no_value_when_ronic_equals_discount_rate():
+    """With RONIC = r, TV = NOPAT_(T+1) / r: g only matters through one year of NOPAT growth."""
+    kwargs = dict(discount_rate=0.10, fade_years=0, nopat_last=100.0, roic_start=0.10)
+    low = dcf_3stage([100.0], terminal_growth=0.00, **kwargs).pv_terminal
+    high = dcf_3stage([100.0], terminal_growth=0.04, **kwargs).pv_terminal
+    assert high / low == pytest.approx(1.04)
+
+
+def test_growth_destroys_value_when_roic_below_discount_rate():
+    kwargs = dict(discount_rate=0.10, fade_years=10, terminal_growth=0.02,
+                  nopat_last=100.0, roic_start=0.06, terminal_roic=0.06)
+    slow = dcf_3stage([100.0], stage1_growth=0.02, **kwargs).enterprise_value
+    fast = dcf_3stage([100.0], stage1_growth=0.10, **kwargs).enterprise_value
+    assert fast < slow
