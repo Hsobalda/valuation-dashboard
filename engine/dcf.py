@@ -1,6 +1,6 @@
 """Three-stage discounted cash flow model with a moat-driven fade period.
 
-The model follows the structure Morningstar uses for its fair value estimates:
+The structure is modelled on the one Morningstar uses for its fair value estimates:
 
   Stage 1 (years 1..n):   explicit FCFF projections (from projection.py).
   Stage 2 (n+1 .. n+f):   the moat fade. Growth decays linearly from the Stage-1

@@ -2,57 +2,51 @@
 
 [![CI](https://github.com/Hsobalda/valuation-dashboard/actions/workflows/ci.yml/badge.svg)](https://github.com/Hsobalda/valuation-dashboard/actions/workflows/ci.yml)
 
-A Streamlit app for valuing listed companies with a three-stage DCF, cross-checked
-against trading comparables. It pulls financials from Yahoo Finance, shows the
-historical evidence, and seeds each assumption from the company's own history so
-the user can see where every input came from before changing it.
+A Streamlit app for valuing listed companies with a three-stage DCF built on
+returns on capital. It loads up to 19 years of financials (SEC filings for US
+companies, Yahoo Finance otherwise), lays out the historical evidence, and seeds
+every assumption from that evidence or from analyst consensus, labelled with its
+source, before you change it.
 
 <!-- Live demo: add Streamlit Community Cloud link once deployed -->
 
 ## Features
 
-- Research brief: business overview, financial history, quality indicators, capital
-  allocation (free cash flow vs dividends and buybacks, share count trend), risk,
-  and the current P/E, EV/EBITDA, EV/Revenue and P/B.
-- Assumption panel: a revenue growth path (years 1-2 from analyst consensus, year 5
-  your view), current and target margin, return on capital, discount rate, terminal
-  growth, fade period and any lasting excess return, each labelled with its source
-  (e.g. "consensus of 40 analysts"). A cross-check sets historical, consensus and
-  fundamental growth (reinvestment rate × ROIC) side by side.
-- Segment build: enter each business segment's revenue, growth and (optionally)
-  margin from the annual report; the company growth path and year-5 margin come
-  from their sum, so mix shift (e.g. Apple's Services growing faster, at higher
-  margins, than Products) shows up in the valuation. Saved per company in
-  `journal/segments/` (git-ignored).
-- Stage 1 projection table (revenue, margin, NOPAT, reinvestment, free cash flow)
-  beside the company's actual capex, D&A and net capex history.
-- Three-stage DCF with a discount rate × terminal growth sensitivity table, and a warning
-  when terminal value makes up most of the valuation.
-- Reverse DCF: the revenue growth the current share price implies, given the other
-  assumptions.
-- Relative valuation, as context rather than a price: a candidate peer table
-  showing which companies are suggested and why, then EV/EBITDA, P/E, forward P/E,
-  EV/Revenue, forward EV/Revenue and P/B against the peer median, with the
-  target's premium or discount.
-- Football field: the DCF scenario and sensitivity ranges, analysts' price targets
-  and the current price.
-- Analyst comparison: your fair value against the mean price target, so the gap
-  (your variant view) is explicit.
-- Banks, lenders and insurers get no DCF, since free cash flow to the firm isn't
-  meaningful when debt is the raw material of the business. Card lenders share
-  Yahoo's "Credit Services" industry with Visa and Mastercard; they're told apart
-  because Yahoo reports no EBITDA for lenders.
-- Bear / base / bull scenarios on growth and margin, with a probability-weighted
-  fair value.
-- Excel export: the base-case DCF as a workbook of live formulas (inputs in blue,
-  each with its source), so the model can be audited and changed in Excel. A test
-  recalculates the workbook and checks it matches the engine to the cent.
-- Valuation journal: save a valuation with a Buy / Watch / Pass decision and a
-  thesis, then track the return since each call and a scorecard by decision.
-  Kept locally in `journal/` (git-ignored) as a record against hindsight bias.
-- Buy price after a margin of safety set by an uncertainty rating (Low 20%, Medium
-  30%, High 40%, Very high 50%, the scale Morningstar uses), seeded from margin
-  stability, leverage, beta and free cash flow history.
+The app runs top to bottom in six sections.
+
+1. Research brief: business overview; revenue, margin and cash-flow history;
+   ROIC against the company's WACC; capital allocation (free cash flow after stock
+   pay against dividends and buybacks, share count trend); risk flags; and current
+   multiples.
+2. Assumptions: a revenue growth path (years 1-2 from analyst consensus, year 5
+   your view) with a cross-check of historical, consensus and fundamental growth
+   (reinvestment rate × ROIC); current and target margin; return on capital; fade
+   period; terminal growth; discount rate, with the company's WACC for reference;
+   bear/bull swings; and an uncertainty rating that sets the margin of safety.
+   Optionally, a segment build: enter each business segment's revenue, growth and
+   margin from the annual report, so mix shift (e.g. Apple's Services outgrowing
+   Products at higher margins) flows into the valuation.
+3. Valuation: probability-weighted fair value across bear, base and bull
+   cases; a reverse DCF (the growth the share price implies); your value against
+   analysts' price targets; a sensitivity table; the Stage 1 projection beside
+   the company's actual capex history; and an Excel download of the model.
+4. Relative valuation (context only, not part of fair value): candidate peers with the reason each
+   is or isn't suggested, then EV/EBITDA, P/E, forward P/E, EV/Revenue, forward
+   EV/Revenue and P/B against the peer median. A football field sets the DCF
+   ranges beside analyst targets and the price.
+5. Margin of safety: the buy-below price.
+6. Valuation journal: save a valuation with a Buy / Watch / Pass decision and a
+   thesis, then track the return since each call and a scorecard by decision. Kept
+   locally in `journal/` (git-ignored), as a record against hindsight bias.
+
+The Excel export rebuilds the base-case DCF from live formulas (inputs in blue,
+each with its source), so it can be audited and changed in Excel; a test
+recalculates the workbook and checks it matches the engine to the cent.
+
+Banks, lenders and insurers get no DCF, since free cash flow to the firm means
+little when debt is the raw material of the business. Card lenders share Yahoo's
+"Credit Services" industry with Visa and Mastercard; they're told apart because
+Yahoo reports no EBITDA for lenders.
 
 ## Methodology
 
@@ -78,20 +72,20 @@ market-value weights) and used as the hurdle in the ROIC comparison.
 
 | Stage | Period | Treatment |
 |---|---|---|
-| 1 | Years 1–5 | Explicit projection at today's ROIC |
-| 2 | Fade period | Growth declines linearly to terminal growth; ROIC declines linearly to the discount rate |
+| 1 | Years 1–5 | Explicit projection at the chosen ROIC (seeded from the 10-year average) |
+| 2 | Fade period | Growth declines linearly to terminal growth; ROIC declines linearly to the discount rate (plus any lasting excess return) |
 | 3 | Terminal | Value driver formula: NOPAT × (1 − g / RONIC) / (r − g), with RONIC = r |
 
 The length of Stage 2 reflects competitive advantage: roughly 5 years for a company
-with no moat, 10 for a narrow moat and 20 for a wide one, following the approach
-Morningstar uses. In the terminal stage new investment earns exactly the required
+with no moat, 10 for a narrow moat and 20 for a wide one, similar to the approach
+Morningstar describes. In the terminal stage new investment earns exactly the required
 return, so the terminal value reduces to NOPAT / r and terminal growth adds
 almost no value: competition is assumed to have eroded excess returns by then.
 For a moat expected to last indefinitely, a "lasting excess return" keeps the
-return on new capital above r in the terminal value; it defaults to zero, and
-setting it is an explicit bet on durability, which is what a high multiple for
-a company like Apple implies.
-A company whose ROIC is below the discount rate destroys value by growing.
+return on new capital above r in the terminal value. It defaults to zero and
+matters less than it sounds: excess returns only add value through growth, and
+terminal growth is low. The fade period and the discount rate move the value far
+more. A company whose ROIC is below the discount rate destroys value by growing.
 
 Cash flows are discounted mid-year (they arrive through the year, not on its last
 day) and from today rather than from the last fiscal year end. The app also
@@ -99,24 +93,29 @@ shows the terminal value as a multiple of final-year NOPAT beside the multiple
 the market pays today, which makes the terminal assumption easy to challenge.
 
 Starting assumptions come from the company's history with guards against
-distorted years: historical and year-5 growth seeds are capped at 15%, the target margin is the median
-rather than the mean, and with no positive ROIC history the seed is the discount
-rate. Fair value is the probability-weighted value of bear, base and bull cases
+distorted years: historical and year-5 growth seeds are capped at 15%, the
+target margin is the median rather than the mean, and with no positive ROIC
+history the seed is the discount rate.
+
+Fair value is the probability-weighted value of bear, base and bull cases
 (25/50/25 by default), each floored at zero since shareholders can't lose more
 than they invest. Enterprise value less net debt and minority interest gives
 equity value, which is divided by diluted shares (current shares outstanding
-scaled by the latest year's diluted/basic ratio).
+scaled by the latest year's diluted/basic ratio). The margin of safety comes from
+an uncertainty rating (Low 20%, Medium 30%, High 40%, Very high 50%, modelled on
+Morningstar's uncertainty ratings), seeded from margin stability, leverage, beta
+and free cash flow history.
 
 Quality metrics include ROIC, gross/operating/net margins, margin volatility and
 FCF conversion (FCF / net income).
 
 Accounting adjustments:
 
-- **Stock-based pay** is already an expense in operating income, so the DCF counts
+- Stock-based pay is already an expense in operating income, so the DCF counts
   it. Free cash flow elsewhere (capital allocation, FCF conversion) deducts it
   too, since operating cash flow adds it back as "non-cash"; buybacks that only
   offset stock pay aren't counted as returns to shareholders.
-- **Leases** are debt for IFRS reporters (IFRS 16 puts lease cost below EBIT) but
+- Leases are debt for IFRS reporters (IFRS 16 puts lease cost below EBIT) but
   not for US GAAP companies, whose operating-lease rent is already inside EBIT;
   counting the liability as well would charge for the leases twice.
 
@@ -126,21 +125,21 @@ Mastercard alongside card lenders trading at a sixth of its revenue multiple).
 Candidates come from the same industry; those with a similar operating margin
 (within 1.5x, or 3 percentage points) are suggested, and the rest are shown with
 the reason they were left out. Medians exclude the target itself and any negative
-multiples (e.g. P/E for a loss-making peer). Companies whose
-share price and financial statements are in different currencies (typically a
-foreign company's US listing) are left out rather than compared on meaningless
-ratios; valuing them properly needs exchange-rate and ADR-ratio adjustments.
+multiples (e.g. P/E for a loss-making peer). Companies whose share price and
+financial statements are in different currencies (typically a foreign company's
+US listing) are left out rather than compared on meaningless ratios; valuing
+them properly needs exchange-rate and ADR-ratio adjustments.
 
 ## Data
 
-- **Financial statements for US companies** come from SEC EDGAR (XBRL data from
+- Financial statements for US companies come from SEC EDGAR (XBRL data from
   10-K filings), typically 15-19 years, with any gaps filled from Yahoo. The
   parser merges the tags a company has used over time (e.g. Apple's switch from
   `SalesRevenueNet` to `RevenueFromContractWithCustomer...` in 2017), keeps only
   full fiscal years, and takes restated figures over originals.
-- **Everything else** (prices, market data, analyst estimates and targets, and
+- Everything else (prices, market data, analyst estimates and targets, and
   statements for non-US companies) comes from Yahoo Finance via `yfinance`.
-- **Offline**, the app falls back to bundled sample data for AAPL, MSFT, PEP, T
+- Offline, the app falls back to bundled sample data for AAPL, MSFT, PEP, T
   and TSCO.L and shows a banner saying so.
 
 Starting assumptions use the last 10 fiscal years, roughly one business cycle.
@@ -172,18 +171,21 @@ pip install -r requirements-dev.txt
 python -m pytest -q
 ```
 
-Tests run offline. They include a DCF checked against a hand-built spreadsheet, a
-zero-growth perpetuity check (value = FCF / r), and cases for sparse data and
-misaligned fiscal years.
+Tests run offline. They include a DCF checked against a hand-built spreadsheet and
+a worked fade-period example, a zero-growth perpetuity check (value = FCF / r),
+the Excel export recalculated and compared with the engine, the SEC filing parser
+on tag changes and restatements, and cases for sparse data and misaligned fiscal
+years.
 
 ## Structure
 
 ```
 app.py        Streamlit entry point
-engine/       Valuation maths (no I/O): WACC, projection, DCF, sensitivity, comps, quality
-data/         Data providers, schema and caching
-brief/        Research brief panels and starting assumptions
-ui/           Streamlit widgets and Plotly charts
+engine/       Valuation maths, no I/O: projection, DCF, scenarios, reverse DCF,
+              sensitivity, segments, comps, WACC, quality, track record
+data/         Yahoo and SEC EDGAR providers, caching, journal storage
+brief/        Research brief panels, starting assumptions, peer screening
+ui/           Streamlit widgets, Plotly charts, tables, Excel export
 tests/        pytest suite
 ```
 

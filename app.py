@@ -47,8 +47,8 @@ def fmt_pct(x: float) -> str:
 
 # --- header + ticker --------------------------------------------------------
 
-st.title("Equity Analysis & Valuation Dashboard")
-st.caption("Research first, then judgment, then math. Informational only — not investment advice.")
+st.title("Valuation Dashboard")
+st.caption("Evidence first, then assumptions, then the valuation. For education only, not investment advice.")
 
 avail = sample_tickers()
 c1, c2 = st.columns([1, 3])
@@ -76,23 +76,23 @@ if source == "live":
 
 if source == "sample":
     st.warning(
-        "⚠️ Showing bundled **sample data** (no network access here, or ticker not "
+        "Showing bundled **sample data** (no network access here, or ticker not "
         "fetched live). Figures are illustrative and anchored to recent public "
-        "filings — verify against live data before relying on anything."
+        "filings; verify against live data before relying on anything.",
+        icon=":material/cloud_off:",
     )
 
 info = provider.company_info(ticker)
-market = provider.market_data(ticker)
 metrics = provider.fundamental_metrics(ticker)
 seed = derive_starting_assumptions(provider, ticker)
 brief = build_brief(provider, ticker, reference_wacc=seed["wacc_reference"]["wacc"])
 
-st.markdown(f"## {info.get('name', ticker)} ({ticker}) — {info.get('sector', '')} · {info.get('industry', '')}")
-st.caption(f"Currency: {info.get('currency', '')} · Live price: {fmt_money(metrics['price'], info.get('currency',''))}")
+st.markdown(f"## {info.get('name', ticker)} ({ticker}) · {info.get('sector', '')} · {info.get('industry', '')}")
+st.caption(f"Currency: {info.get('currency', '')} · Price: {fmt_money(metrics['price'], info.get('currency', ''))}")
 
-# --- 2. research brief ------------------------------------------------------
+# --- 1. research brief ------------------------------------------------------
 
-st.markdown("### 2. Research brief — evidence before assumptions")
+st.markdown("### 1. Research brief: evidence before assumptions")
 
 with st.expander("A. What is this business?", expanded=True):
     st.write(brief["business"]["summary"] or "*(no summary available)*")
@@ -127,17 +127,17 @@ with st.expander("D. How does it use its cash? (capital allocation)", expanded=T
             "claims, so free cash flow isn't a meaningful measure. Judge capital allocation "
             "on dividends, buybacks and the share count against capital ratios instead."
         )
-        d = {**d, "flags": []}
+        st.caption(f"Diluted share count {fmt_pct(d['share_cagr'])} a year.")
     else:
         st.plotly_chart(charts.capital_allocation_chart(d, info.get("currency", "")), width="stretch")
-    st.caption(
-        f"Returned to shareholders: {fmt_pct(d['payout_of_fcf'])} of free cash flow, net of "
-        f"buybacks that only offset stock pay ({fmt_pct(d['sbc_share_of_buybacks'])} of buybacks) · "
-        f"diluted share count {fmt_pct(d['share_cagr'])} a year · net debt "
-        f"{d['net_debt_start'] / 1e9:,.1f}bn → {d['net_debt_end'] / 1e9:,.1f}bn"
-    )
-    for flag in d["flags"]:
-        st.warning(flag, icon=":material/flag:")
+        st.caption(
+            f"Returned to shareholders: {fmt_pct(d['payout_of_fcf'])} of free cash flow, net of "
+            f"buybacks that only offset stock pay ({fmt_pct(d['sbc_share_of_buybacks'])} of buybacks) · "
+            f"diluted share count {fmt_pct(d['share_cagr'])} a year · net debt "
+            f"{d['net_debt_start'] / 1e9:,.1f}bn → {d['net_debt_end'] / 1e9:,.1f}bn"
+        )
+        for flag in d["flags"]:
+            st.warning(flag, icon=":material/flag:")
     st.caption("Decision this feeds: " + d["decision"] + " · " + d["what_this_means"])
 
 with st.expander("E. What could go wrong? (risk)", expanded=True):
@@ -147,7 +147,7 @@ with st.expander("E. What could go wrong? (risk)", expanded=True):
         f"{r['debt_to_equity']:.1f}x · Beta: {r['beta']:.2f}"
     )
     for flag in r["flags"]:
-        st.warning("🚩 " + flag)
+        st.warning(flag, icon=":material/flag:")
     st.caption("Decision this feeds: " + r["decision"] + " · " + r["what_this_means"])
 
 with st.expander("F. What's already priced in?", expanded=True):
@@ -158,7 +158,7 @@ with st.expander("F. What's already priced in?", expanded=True):
     }), width="stretch")
     st.caption("Decision this feeds: " + f["decision"] + " · " + f["what_this_means"])
 
-# --- 3. assumptions + 4. valuation ------------------------------------------
+# --- 2. assumptions + 3. valuation ------------------------------------------
 
 ccy = info.get("currency", "")
 price = metrics["price"]
@@ -166,7 +166,7 @@ run = None
 buy_zone = None
 
 if metrics.get("currency_mismatch"):
-    st.markdown("### 3–4. Valuation")
+    st.markdown("### 2–3. Valuation")
     st.warning(
         f"{ticker} trades in {info.get('currency')} but reports in "
         f"{info.get('financial_currency')} (usually a foreign company's US listing). "
@@ -175,7 +175,7 @@ if metrics.get("currency_mismatch"):
         "instead, if it has one."
     )
 elif not dcf_applicable(info):
-    st.markdown("### 3–4. Valuation")
+    st.markdown("### 2–3. Valuation")
     st.info(
         f"A cash-flow DCF doesn't apply to {info.get('industry', 'this industry').lower()}: "
         "for a bank, lender or insurer, debt and deposits are the raw material of the business "
@@ -185,7 +185,7 @@ elif not dcf_applicable(info):
 else:
     assumptions = render_assumption_panel(seed, ticker)
 
-    st.markdown("### 4. Valuation")
+    st.markdown("### 3. Valuation")
     try:
         run = run_valuation(
             base_revenue=metrics["revenue"],
@@ -277,8 +277,9 @@ else:
 
     if res.terminal_share_of_ev > 0.8:
         st.warning(
-            f"Terminal value is {res.terminal_share_of_ev:.0%} of enterprise value — the "
-            "model is effectively a single bet on long-run growth. Stress-test it (below)."
+            f"Terminal value is {res.terminal_share_of_ev:.0%} of enterprise value, so most of the "
+            "value comes after the explicit forecast and rests on the fade period and terminal "
+            "assumptions. Stress-test them with the scenarios and sensitivity table below."
         )
 
     st.markdown("#### Scenarios")
@@ -344,9 +345,9 @@ else:
             "that capex doesn't, which can make net capex look negative."
         )
 
-# --- 5. relative valuation + football field ---------------------------------
+# --- 4. relative valuation + football field ---------------------------------
 
-st.markdown("### 5. Relative valuation (context, not part of fair value)")
+st.markdown("### 4. Relative valuation (context, not part of fair value)")
 
 if metrics.get("currency_mismatch"):
     st.caption("Comparables skipped for the same currency reason as the valuation.")
@@ -419,10 +420,10 @@ if ranges:
     st.markdown("#### Football field")
     st.plotly_chart(charts.football_field(ranges, price, buy_zone, ccy), width="stretch")
 
-# --- 6. margin of safety ----------------------------------------------------
+# --- 5. margin of safety ----------------------------------------------------
 
 if run is not None:
-    st.markdown("### 6. Margin of safety")
+    st.markdown("### 5. Margin of safety")
     mos = assumptions.margin_of_safety
     st.write(
         f"Required margin of safety: **{mos:.0%}** → you'd want to pay no more than "
@@ -434,9 +435,9 @@ if run is not None:
     else:
         st.info(f"Current price {fmt_money(price, ccy)} is above the buy zone of {fmt_money(buy_zone, ccy)}.")
 
-# --- 7. journal --------------------------------------------------------------
+# --- 6. journal --------------------------------------------------------------
 
-st.markdown("### 7. Valuation journal")
+st.markdown("### 6. Valuation journal")
 if run is not None:
     render_save_form({
         "date": dt.date.today().isoformat(),
@@ -456,7 +457,7 @@ render_history(provider, ticker)
 
 st.markdown("---")
 st.caption(
-    "Informational and educational only — not investment advice. Data via Yahoo "
-    "Finance (live) or bundled illustrative sample data (offline). Valuation is a "
-    "range of judgment, not a single number."
+    "For education only, not investment advice. Data: SEC EDGAR filings and Yahoo Finance "
+    "(live), or bundled illustrative sample data (offline). A valuation is a range of "
+    "judgement, not a single number."
 )

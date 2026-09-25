@@ -37,7 +37,7 @@ def render_assumption_panel(seed: dict, ticker: str) -> Assumptions:
     """
     prov = seed.get("provenance", {})
 
-    st.markdown("### 3. Assumptions (each anchored to the evidence above)")
+    st.markdown("### 2. Assumptions (each anchored to the evidence above)")
 
     col1, col2, col3 = st.columns(3)
     with col1:

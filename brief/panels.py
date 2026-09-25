@@ -182,7 +182,7 @@ def panel_history(provider, ticker: str) -> dict:
         "what_this_means": (
             "This is the empirical anchor: every forecast is a deviation from "
             "this history, and the deviation is what you must justify. Check "
-            "FCF/income conversion -- earnings that aren't backed by cash are "
+            "FCF/income conversion: earnings that aren't backed by cash are "
             "weaker than they look."
         ),
     }
@@ -334,7 +334,7 @@ def panel_risk(provider, ticker: str) -> dict:
         flags.append(
             f"Data provider returned mismatched fiscal years across statements "
             f"({', '.join(str(y) for y in dropped_years)} present in only one "
-            "statement) -- ratios below use only the overlapping years"
+            "statement), so ratios use only the overlapping years"
         )
     if years_fcf_below_ni >= 3:
         flags.append(
@@ -356,7 +356,7 @@ def panel_risk(provider, ticker: str) -> dict:
         "flags": flags,
         "what_this_means": (
             "Higher leverage, more volatile cash flows and weaker earnings "
-            "quality all mean more uncertain value -> a larger required "
+            "quality all mean more uncertain value, so a larger required "
             "margin of safety. The discount rate stays at your required return."
         ),
     }
@@ -386,7 +386,7 @@ def panel_priced_in(provider, ticker: str) -> dict:
         "what_this_means": (
             "The market is always pricing in *some* forecast. Compare these "
             "multiples to the peers below and ask: is the premium/discount "
-            "justified by Panels B-E? The reverse DCF in section 4 shows the "
+            "justified by Panels B-E? The reverse DCF in section 3 shows the "
             "growth today's price implies; your variant view is where you "
             "believe the market is wrong."
         ),

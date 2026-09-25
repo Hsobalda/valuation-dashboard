@@ -17,7 +17,7 @@ DISCOUNT_RATE = 0.10  # required return: the hurdle every investment must clear
 RISK_FREE = 0.04
 EQUITY_RISK_PREMIUM = 0.05
 
-# Margin of safety by uncertainty, on Morningstar's scale for a 5-star rating
+# Margin of safety by uncertainty rating, modelled on Morningstar's uncertainty ratings
 SEED_YEARS = 10
 MAX_SEED_GROWTH = 0.15
 GROWTH_FLOOR, GROWTH_CEILING = -0.20, 1.00  # growth slider range
@@ -146,8 +146,8 @@ def derive_starting_assumptions(provider, ticker: str) -> dict:
                 "so growth neither creates nor destroys value"
             ),
             "tax_rate": f"FY{revenue.index[-1]} effective tax rate",
-            "fade_years": "default -- set from the moat evidence in Panel C",
-            "terminal_growth": "default -- long-run GDP/inflation, 2-3%",
+            "fade_years": "default: set from the moat evidence in Panel C",
+            "terminal_growth": "default: long-run nominal GDP growth, typically 2-3%",
             "discount_rate": (
                 f"required return of {DISCOUNT_RATE:.0%}; company WACC for "
                 f"reference is {ref['wacc']:.1%}"
