@@ -21,6 +21,8 @@ INCOME_FIELDS = [
     "income_tax",
     "net_income",
     "eps_diluted",
+    "shares_basic_avg",
+    "shares_diluted_avg",
 ]
 
 BALANCE_FIELDS = [
@@ -59,6 +61,8 @@ YF_INCOME_MAP = {
     "income_tax": ["Tax Provision", "Income Tax Expense"],
     "net_income": ["Net Income"],
     "eps_diluted": ["Diluted EPS", "Diluted Earnings Per Share"],
+    "shares_basic_avg": ["Basic Average Shares"],
+    "shares_diluted_avg": ["Diluted Average Shares"],
 }
 
 YF_BALANCE_MAP = {

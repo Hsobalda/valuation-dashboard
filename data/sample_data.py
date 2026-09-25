@@ -2,8 +2,7 @@
 
 Used only when live data is unavailable (e.g. sandboxed/offline) so the app is
 still demonstrable and the tests stay deterministic. Figures are ILLUSTRATIVE
--- approximate real-world values anchored to public filings and to the real
-snapshots in v02_draft/snapshots/, NOT exact. The UI labels this clearly.
+-- approximate real-world values anchored to public filings, NOT exact. The UI labels this clearly.
 
 Conventions: statement values in millions; capex/dividends/buybacks are positive
 cash-outflow magnitudes; per-share and share-count figures unscaled.
@@ -77,7 +76,7 @@ def _company(name, sector, industry, summary, currency, beta, price, market_cap,
         "info": {"name": name, "sector": sector, "industry": industry,
                  "summary": summary, "currency": currency, "beta": beta},
         "market": {"price": price, "market_cap": market_cap * SCALE,
-                   "shares_outstanding": shares, "shares_diluted": shares},
+                   "shares_outstanding": shares},
         "years": list(YEARS),
         "income": {k: v[:n] for k, v in income.items()},
         "balance": {k: v[:n] for k, v in balance.items()},

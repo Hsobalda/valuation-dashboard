@@ -64,3 +64,16 @@ def test_derive_metrics_handles_missing_columns():
     assert m["net_debt"] == pytest.approx(40.0)
     assert m["fcf"] == pytest.approx(20.0)
     assert m["bvps"] == pytest.approx(0.8)
+    assert m["shares_diluted"] == pytest.approx(100.0)  # no share data -> no dilution
+
+
+def test_diluted_shares_use_current_count_times_dilution_ratio():
+    import pandas as pd
+
+    market = {"price": 10.0, "market_cap": 1000.0, "shares_outstanding": 95.0}
+    # last year: 100 basic, 102 diluted on average; since then buybacks cut
+    # the count to 95, so diluted today is 95 * 1.02, not the stale 102
+    inc = pd.DataFrame({"shares_basic_avg": [100.0], "shares_diluted_avg": [102.0]}, index=[2024])
+    empty = pd.DataFrame(index=[2024])
+    m = derive_metrics({}, market, inc, empty, empty)
+    assert m["shares_diluted"] == pytest.approx(96.9)

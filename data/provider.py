@@ -55,6 +55,12 @@ def derive_metrics(info: dict, market: dict, income: pd.DataFrame,
     equity = f(balance, "stockholder_equity")
     minority = f(balance, "minority_interest")
     shares = market.get("shares_outstanding", 0.0)
+    # Current share count grossed up by last year's dilution ratio. Using the
+    # average diluted count directly would overstate shares for companies that
+    # have been buying stock back since.
+    basic_avg, diluted_avg = f(income, "shares_basic_avg"), f(income, "shares_diluted_avg")
+    dilution = diluted_avg / basic_avg if basic_avg > 0 and diluted_avg > 0 else 1.0
+    shares_diluted = shares * max(dilution, 1.0)
     net_debt = debt - cash - st_inv
     bvps = equity / shares if shares else 0.0
     fcf = f(cashflow, "operating_cash_flow") - f(cashflow, "capital_expenditure")
@@ -73,7 +79,7 @@ def derive_metrics(info: dict, market: dict, income: pd.DataFrame,
         "beta": info.get("beta", 0.0),
         "price": market.get("price", 0.0),
         "shares_outstanding": market.get("shares_outstanding", 0.0),
-        "shares_diluted": market.get("shares_diluted", market.get("shares_outstanding", 0.0)),
+        "shares_diluted": shares_diluted,
     }
 
 
@@ -210,7 +216,6 @@ class YFinanceProvider:
             "price": price,
             "market_cap": float(info.get("marketCap") or 0.0),
             "shares_outstanding": float(info.get("sharesOutstanding") or 0.0),
-            "shares_diluted": float(info.get("sharesOutstanding") or 0.0),
         }
 
     def fundamental_metrics(self, ticker: str) -> dict:
