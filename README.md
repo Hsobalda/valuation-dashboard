@@ -11,14 +11,20 @@ the user can see where every input came from before changing it.
 
 ## Features
 
-- Research brief: business overview, financial history, quality indicators, risk,
+- Research brief: business overview, financial history, quality indicators, capital
+  allocation (free cash flow vs dividends and buybacks, share count trend), risk,
   and the current P/E, EV/EBITDA, EV/Revenue and P/B.
 - Assumption panel: growth, margins, reinvestment, discount rate, terminal growth and fade
   period, each labelled with its source (e.g. "FY2024 operating margin").
 - Three-stage DCF with a discount rate × terminal growth sensitivity table, and a warning
   when terminal value makes up most of the valuation.
-- Comparables: EV/Revenue, EV/EBITDA, P/E and P/B against a chosen peer set, shown on a
-  football-field chart next to the DCF value and current price.
+- Reverse DCF: the revenue growth the current share price implies, given the other
+  assumptions.
+- Comparables: EV/Revenue, EV/EBITDA, P/E and P/B against peers suggested from the
+  same industry (or any tickers typed in), shown on a football-field chart next to
+  the DCF value and current price.
+- Banks and insurers are valued on comparables only, since free cash flow to the
+  firm isn't meaningful when debt is the raw material of the business.
 - Buy price after applying a required margin of safety.
 
 ## Methodology
@@ -45,7 +51,8 @@ market-value weights) and used as the hurdle in the ROIC comparison.
 The length of Stage 2 reflects competitive advantage: roughly 5 years for a company
 with no moat, 10 for a narrow moat and 20 for a wide one, following the approach
 Morningstar uses. Enterprise value less net debt and minority interest gives
-equity value, which is divided by diluted shares.
+equity value, which is divided by diluted shares (current shares outstanding
+scaled by the latest year's diluted/basic ratio).
 
 Quality metrics include ROIC, gross/operating/net margins, margin volatility and
 FCF conversion (FCF / net income).
