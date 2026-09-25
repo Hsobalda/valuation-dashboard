@@ -37,7 +37,7 @@ def _col(df: pd.DataFrame, name: str) -> pd.Series:
 
 
 def _ebitda(income: pd.DataFrame) -> pd.Series:
-    return income["operating_income"] + _col(income, "depreciation_amortization")
+    return _col(income, "operating_income") + _col(income, "depreciation_amortization")
 
 
 def _fcf(cashflow: pd.DataFrame) -> pd.Series:
@@ -81,11 +81,21 @@ def _align_years(a: pd.Series, b: pd.Series) -> tuple[pd.Series, pd.Series, list
 def _invested_capital(balance: pd.DataFrame) -> pd.Series:
     # financing approach: total debt + equity - cash - short-term investments
     return (
-        balance["total_debt"]
-        + balance["stockholder_equity"]
-        - balance["cash_and_equiv"]
+        _col(balance, "total_debt")
+        + _col(balance, "stockholder_equity")
+        - _col(balance, "cash_and_equiv")
         - _col(balance, "short_term_investments")
     )
+
+
+# Balance-sheet businesses: debt is funding for the product, not financing, so
+# free cash flow to the firm is undefined. Payment networks and asset managers
+# (also "Financial Services" on Yahoo) are fee businesses and are left in.
+_NO_DCF_INDUSTRIES = ("Banks", "Insurance", "Mortgage Finance", "Capital Markets")
+
+
+def dcf_applicable(industry: str) -> bool:
+    return not (industry or "").startswith(_NO_DCF_INDUSTRIES)
 
 
 def panel_business(provider, ticker: str) -> dict:
@@ -109,9 +119,9 @@ def panel_history(provider, ticker: str) -> dict:
     inc = provider.income_statement(ticker)
     cf = provider.cash_flow(ticker)
 
-    revenue = inc["revenue"]
+    revenue = _col(inc, "revenue")
     ebitda = _ebitda(inc)
-    ni = inc["net_income"]
+    ni = _col(inc, "net_income")
     fcf = _fcf(cf)
 
     # indexed to first year = 100
@@ -129,9 +139,9 @@ def panel_history(provider, ticker: str) -> dict:
         "revenue_idx": index100(revenue),
         "ebitda_idx": index100(ebitda),
         "ni_idx": index100(ni),
-        "gross_margin": gross_margin(inc["revenue"], _col(inc, "cost_of_revenue")),
-        "operating_margin": operating_margin(inc["operating_income"], inc["revenue"]),
-        "net_margin": net_margin(inc["net_income"], inc["revenue"]),
+        "gross_margin": gross_margin(_col(inc, "revenue"), _col(inc, "cost_of_revenue")),
+        "operating_margin": operating_margin(_col(inc, "operating_income"), _col(inc, "revenue")),
+        "net_margin": net_margin(_col(inc, "net_income"), _col(inc, "revenue")),
         "fcf_conversion": fcf_conversion_series(fcf, ni),
         "revenue_cagr": _cagr(revenue),
         "what_this_means": (
@@ -148,17 +158,17 @@ def panel_quality(provider, ticker: str, reference_wacc: float) -> dict:
     bal = provider.balance_sheet(ticker)
     cf = provider.cash_flow(ticker)
 
-    nopat = inc["operating_income"] * (1.0 - _effective_tax_rate(inc))
+    nopat = _col(inc, "operating_income") * (1.0 - _effective_tax_rate(inc))
     ic = _invested_capital(bal)
     roic = roic_series(nopat, ic)
-    gm = gross_margin(inc["revenue"], _col(inc, "cost_of_revenue"))
-    fcf_conv = fcf_conversion_series(_fcf(cf), inc["net_income"])
+    gm = gross_margin(_col(inc, "revenue"), _col(inc, "cost_of_revenue"))
+    fcf_conv = fcf_conversion_series(_fcf(cf), _col(inc, "net_income"))
 
     years_above_wacc = int((roic - reference_wacc > 0).sum())
     avg_roic = float(roic.dropna().mean()) if roic.dropna().size else float("nan")
 
     goodwill_pct = 0.0
-    ta_last = float(bal["total_assets"].iloc[-1]) if bal["total_assets"].iloc[-1] else 0.0
+    ta_last = float(_col(bal, "total_assets").iloc[-1]) if _col(bal, "total_assets").iloc[-1] else 0.0
     if ta_last:
         goodwill_pct = float(_col(bal, "goodwill").iloc[-1]) / ta_last
 
@@ -189,13 +199,13 @@ def panel_risk(provider, ticker: str) -> dict:
     info = provider.company_info(ticker)
 
     ebitda = _ebitda(inc)
-    net_debt = bal["total_debt"] - bal["cash_and_equiv"] - _col(bal, "short_term_investments")
+    net_debt = _col(bal, "total_debt") - _col(bal, "cash_and_equiv") - _col(bal, "short_term_investments")
     net_debt_a, ebitda_a, nd_ebitda_dropped = _align_years(net_debt, ebitda)
     nd_ebitda = net_debt_a / ebitda_a.replace(0, pd.NA)
-    debt_equity = bal["total_debt"] / bal["stockholder_equity"].replace(0, pd.NA)
+    debt_equity = _col(bal, "total_debt") / _col(bal, "stockholder_equity").replace(0, pd.NA)
 
     fcf = _fcf(cf)
-    ni = inc["net_income"]
+    ni = _col(inc, "net_income")
     fcf_a, ni_a, fcf_ni_dropped = _align_years(fcf, ni)
     years_fcf_below_ni = int((fcf_a < ni_a).sum())
 
@@ -212,7 +222,7 @@ def panel_risk(provider, ticker: str) -> dict:
             f"FCF below net income in {years_fcf_below_ni} of the last "
             f"{len(ni_a)} years (earnings may be less cash-backed than they appear)"
         )
-    ta_last = float(bal["total_assets"].iloc[-1]) if bal["total_assets"].iloc[-1] else 0.0
+    ta_last = float(_col(bal, "total_assets").iloc[-1]) if _col(bal, "total_assets").iloc[-1] else 0.0
     goodwill_pct = float(_col(bal, "goodwill").iloc[-1]) / ta_last if ta_last else 0.0
     if goodwill_pct > 0.40:
         flags.append(f"Goodwill is {goodwill_pct:.0%} of total assets (impairment sensitivity)")

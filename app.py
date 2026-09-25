@@ -10,7 +10,7 @@ import streamlit as st
 import pandas as pd
 
 from data import MultiProvider, sample_tickers
-from brief import build_brief, derive_starting_assumptions
+from brief import build_brief, dcf_applicable, derive_starting_assumptions
 from engine import run_valuation, comps_analysis
 from ui import charts
 from ui.assumptions import render_assumption_panel
@@ -115,45 +115,54 @@ with st.expander("F. What's already priced in?", expanded=True):
     }), width="stretch")
     st.caption("Decision this feeds: " + f["decision"] + " · " + f["what_this_means"])
 
-# --- 3. assumptions ---------------------------------------------------------
+# --- 3. assumptions + 4. valuation ------------------------------------------
 
-assumptions = render_assumption_panel(seed, ticker)
-
-# --- 4. valuation -----------------------------------------------------------
-
-st.markdown("### 4. Valuation")
-
-try:
-    run = run_valuation(
-        base_revenue=metrics["revenue"],
-        assumptions=assumptions,
-        net_debt=metrics["net_debt"],
-        minority_interest=metrics["minority_interest"],
-        shares_diluted=metrics["shares_diluted"],
-    )
-except ValueError as e:
-    st.error(f"Valuation failed: {e}")
-    st.stop()
-
-res = run.result
 ccy = info.get("currency", "")
 price = metrics["price"]
-upside = res.equity_value_per_share / price - 1 if price else float("nan")
-buy_zone = res.equity_value_per_share * (1.0 - assumptions.margin_of_safety)
+run = None
+buy_zone = None
 
-m1, m2, m3, m4 = st.columns(4)
-m1.metric("Est. fair value / share", fmt_money(res.equity_value_per_share, ccy))
-m2.metric("Upside / downside vs price", fmt_pct(upside))
-m3.metric("Buy zone (≤)", fmt_money(buy_zone, ccy))
-m4.metric("Terminal value % of EV", fmt_pct(res.terminal_share_of_ev))
-
-if res.terminal_share_of_ev > 0.8:
-    st.warning(
-        f"Terminal value is {res.terminal_share_of_ev:.0%} of enterprise value — the "
-        "model is effectively a single bet on long-run growth. Stress-test it (below)."
+if not dcf_applicable(info.get("industry", "")):
+    st.markdown("### 3–4. Valuation")
+    st.info(
+        f"A cash-flow DCF doesn't apply to {info.get('industry', 'this industry').lower()}: "
+        "for a bank or insurer, debt and deposits are the raw material of the business "
+        "rather than financing, so free cash flow to the firm isn't meaningful. Value it "
+        "on P/B and P/E against peers below, judging P/B against return on equity."
     )
+else:
+    assumptions = render_assumption_panel(seed, ticker)
 
-st.plotly_chart(charts.sensitivity_heatmap(run.sensitivity), width="stretch")
+    st.markdown("### 4. Valuation")
+    try:
+        run = run_valuation(
+            base_revenue=metrics["revenue"],
+            assumptions=assumptions,
+            net_debt=metrics["net_debt"],
+            minority_interest=metrics["minority_interest"],
+            shares_diluted=metrics["shares_diluted"],
+        )
+    except ValueError as e:
+        st.error(f"Valuation failed: {e}")
+        st.stop()
+
+    res = run.result
+    upside = res.equity_value_per_share / price - 1 if price else float("nan")
+    buy_zone = res.equity_value_per_share * (1.0 - assumptions.margin_of_safety)
+
+    m1, m2, m3, m4 = st.columns(4)
+    m1.metric("Est. fair value / share", fmt_money(res.equity_value_per_share, ccy))
+    m2.metric("Upside / downside vs price", fmt_pct(upside))
+    m3.metric("Buy zone (≤)", fmt_money(buy_zone, ccy))
+    m4.metric("Terminal value % of EV", fmt_pct(res.terminal_share_of_ev))
+
+    if res.terminal_share_of_ev > 0.8:
+        st.warning(
+            f"Terminal value is {res.terminal_share_of_ev:.0%} of enterprise value — the "
+            "model is effectively a single bet on long-run growth. Stress-test it (below)."
+        )
+
+    st.plotly_chart(charts.sensitivity_heatmap(run.sensitivity), width="stretch")
 
 # --- 5. comps + football field ---------------------------------------------
 
@@ -169,29 +178,32 @@ if peers:
     st.caption("Implied per-share value from each median multiple:")
     st.dataframe(pd.DataFrame({"implied value/share": comps.implied_values}), width="stretch")
 
-    dcf_vals = [v for row in run.sensitivity.values for v in row if v is not None and v == v]
-    dcf_lo, dcf_hi = min(dcf_vals), max(dcf_vals)
+    ranges = {}
+    if run is not None:
+        dcf_vals = [v for row in run.sensitivity.values for v in row if v is not None and v == v]
+        ranges["DCF (sensitivity)"] = (min(dcf_vals), max(dcf_vals))
     comp_vals = [v for v in comps.implied_values.values() if v is not None and v == v]
-    ranges = {"DCF (sensitivity)": (dcf_lo, dcf_hi)}
     if comp_vals:
         ranges["Comps (multiples)"] = (min(comp_vals), max(comp_vals))
-    st.plotly_chart(charts.football_field(ranges, price, buy_zone, ccy), width="stretch")
+    if ranges:
+        st.plotly_chart(charts.football_field(ranges, price, buy_zone, ccy), width="stretch")
 else:
     st.caption("Add at least one peer to see the comps table and football field.")
 
 # --- 6. margin of safety ----------------------------------------------------
 
-st.markdown("### 6. Margin of safety")
-mos = assumptions.margin_of_safety
-st.write(
-    f"Required margin of safety: **{mos:.0%}** → you'd want to pay no more than "
-    f"**{fmt_money(buy_zone, ccy)}** for a value estimate of "
-    f"{fmt_money(res.equity_value_per_share, ccy)}."
-)
-if price <= buy_zone:
-    st.success(f"Current price {fmt_money(price, ccy)} is at or below the buy zone.")
-else:
-    st.info(f"Current price {fmt_money(price, ccy)} is above the buy zone of {fmt_money(buy_zone, ccy)}.")
+if run is not None:
+    st.markdown("### 6. Margin of safety")
+    mos = assumptions.margin_of_safety
+    st.write(
+        f"Required margin of safety: **{mos:.0%}** → you'd want to pay no more than "
+        f"**{fmt_money(buy_zone, ccy)}** for a value estimate of "
+        f"{fmt_money(run.result.equity_value_per_share, ccy)}."
+    )
+    if price <= buy_zone:
+        st.success(f"Current price {fmt_money(price, ccy)} is at or below the buy zone.")
+    else:
+        st.info(f"Current price {fmt_money(price, ccy)} is above the buy zone of {fmt_money(buy_zone, ccy)}.")
 
 st.markdown("---")
 st.caption(

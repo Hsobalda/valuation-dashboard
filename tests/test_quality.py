@@ -52,3 +52,13 @@ def test_margins():
     assert gross_margin(rev, cogs)[2020] == pytest.approx(0.40)
     assert operating_margin(oi, rev)[2020] == pytest.approx(0.20)
     assert net_margin(ni, rev)[2020] == pytest.approx(0.12)
+
+
+def test_dcf_not_applied_to_banks_and_insurers():
+    from brief import dcf_applicable
+
+    assert not dcf_applicable("Banks - Diversified")
+    assert not dcf_applicable("Insurance - Property & Casualty")
+    assert dcf_applicable("Credit Services")  # Visa/Mastercard: fee businesses
+    assert dcf_applicable("Consumer Electronics")
+    assert dcf_applicable("")

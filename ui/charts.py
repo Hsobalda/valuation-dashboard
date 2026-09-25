@@ -78,7 +78,7 @@ def sensitivity_heatmap(df) -> go.Figure:
 
 
 def football_field(ranges: dict[str, tuple[float, float]], price: float,
-                   mos_price: float, currency: str = "USD") -> go.Figure:
+                   mos_price: float | None, currency: str = "USD") -> go.Figure:
     """Horizontal valuation ranges vs current price and buy-zone line."""
     labels = list(ranges.keys())
     fig = go.Figure()
@@ -92,9 +92,10 @@ def football_field(ranges: dict[str, tuple[float, float]], price: float,
         ))
     fig.add_vline(x=price, line_color="black", line_width=2,
                   annotation_text=f"price {price:,.2f}", annotation_position="top")
-    fig.add_vline(x=mos_price, line_color="green", line_dash="dash", line_width=2,
-                  annotation_text=f"buy zone ≤ {mos_price:,.2f}",
-                  annotation_position="bottom")
+    if mos_price is not None:
+        fig.add_vline(x=mos_price, line_color="green", line_dash="dash", line_width=2,
+                      annotation_text=f"buy zone ≤ {mos_price:,.2f}",
+                      annotation_position="bottom")
     fig.update_layout(**_base_layout("Football field (value ranges vs price)", height=320),
                       xaxis_title=currency)
     return fig
