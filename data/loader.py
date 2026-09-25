@@ -56,6 +56,16 @@ def load_company(ticker: str) -> dict:
             "cashflow": p.cash_flow(ticker)}
 
 
+@cache_data(ttl=86400)
+def load_peer_suggestions(ticker: str, industry_key: str, sector_key: str) -> list[str]:
+    if (industry_key or sector_key) and _live_available():
+        try:
+            return YFinanceProvider().peer_suggestions(ticker, industry_key, sector_key)
+        except Exception:
+            pass
+    return [t for t in sample_tickers() if t != ticker]
+
+
 def sample_tickers() -> list[str]:
     return SampleProvider()._tickers()
 
@@ -89,6 +99,10 @@ class MultiProvider:
 
     def source(self, ticker: str) -> str:
         return self._get(ticker)["source"]
+
+    def peer_suggestions(self, ticker: str) -> list[str]:
+        info = self.company_info(ticker)
+        return load_peer_suggestions(ticker, info.get("industry_key", ""), info.get("sector_key", ""))
 
     def fundamental_metrics(self, ticker: str) -> dict:
         d = self._get(ticker)

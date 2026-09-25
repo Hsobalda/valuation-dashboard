@@ -204,6 +204,8 @@ class YFinanceProvider:
             "industry": info.get("industry", ""),
             "summary": info.get("longBusinessSummary", ""),
             "currency": self._MINOR_UNITS.get(info.get("currency"), info.get("currency", "USD")),
+            "industry_key": info.get("industryKey", ""),
+            "sector_key": info.get("sectorKey", ""),
             "beta": float(info.get("beta") or 0.0),
         }
 
@@ -217,6 +219,24 @@ class YFinanceProvider:
             "market_cap": float(info.get("marketCap") or 0.0),
             "shares_outstanding": float(info.get("sharesOutstanding") or 0.0),
         }
+
+    def peer_suggestions(self, ticker: str, industry_key: str, sector_key: str,
+                         limit: int = 8) -> list[str]:
+        """Same-industry companies at least 1/20th of the target's size, topped up
+        with the sector's largest companies when the industry is too thin (e.g.
+        Apple is ~100% of Yahoo's "consumer electronics")."""
+        peers: list[str] = []
+        if industry_key:
+            top = self._yf.Industry(industry_key).top_companies
+            if top is not None and not top.empty:
+                weights = top["market weight"].fillna(0.0)
+                floor = weights[ticker] / 20 if ticker in weights.index else 0.01
+                peers = [s for s, w in weights.items() if s != ticker and w >= floor]
+        if len(peers) < 3 and sector_key:
+            top = self._yf.Sector(sector_key).top_companies
+            if top is not None:
+                peers += [s for s in top.index if s != ticker and s not in peers]
+        return peers[:limit]
 
     def fundamental_metrics(self, ticker: str) -> dict:
         return derive_metrics(

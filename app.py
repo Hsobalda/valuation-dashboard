@@ -168,12 +168,20 @@ else:
 
 st.markdown("### 5. Comparables & football field")
 
-peer_options = [t for t in avail if t != ticker]
-default_peers = peer_options[:4]
-peers = st.multiselect("Peer set (your judgment call)", peer_options, default=default_peers)
+suggested = provider.peer_suggestions(ticker)
+peers = st.multiselect(
+    "Peer set (your judgment call)", suggested, default=suggested[:4],
+    accept_new_options=True, key=f"{ticker}:peers",
+    help="Suggestions are the largest companies in the same Yahoo industry, mostly "
+         "US-listed. Type any ticker to add it, e.g. SBRY.L for Sainsbury's.",
+)
+peers = list(dict.fromkeys(p.strip().upper() for p in peers if p.strip()))
 
 if peers:
     comps = comps_analysis(ticker, peers, ["ev_ebitda", "pe", "ev_revenue", "pb"], provider)
+    missing = [p for p in peers if p not in comps.peer_table.index]
+    if missing:
+        st.warning(f"No data for {', '.join(missing)}, so left out of the medians.")
     st.dataframe(comps.peer_table.round(1), width="stretch")
     st.caption("Implied per-share value from each median multiple:")
     st.dataframe(pd.DataFrame({"implied value/share": comps.implied_values}), width="stretch")

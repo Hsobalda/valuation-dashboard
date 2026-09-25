@@ -77,3 +77,34 @@ def test_diluted_shares_use_current_count_times_dilution_ratio():
     empty = pd.DataFrame(index=[2024])
     m = derive_metrics({}, market, inc, empty, empty)
     assert m["shares_diluted"] == pytest.approx(96.9)
+
+
+def _fake_yf(industry_weights, sector_tickers):
+    import pandas as pd
+
+    class Industry:
+        def __init__(self, key):
+            self.top_companies = pd.DataFrame({"market weight": industry_weights})
+
+    class Sector:
+        def __init__(self, key):
+            self.top_companies = pd.DataFrame(index=sector_tickers)
+
+    return type("yf", (), {"Industry": Industry, "Sector": Sector})
+
+
+def test_peer_suggestions_drop_tiny_industry_peers_and_top_up_from_sector():
+    from data.provider import YFinanceProvider
+
+    p = YFinanceProvider()
+    # target is ~99% of its industry, so no industry peer clears 1/20th of its size
+    p._yf = _fake_yf({"BIG": 0.99, "TINY1": 0.006, "TINY2": 0.004}, ["S1", "BIG", "S2", "S3"])
+    assert p.peer_suggestions("BIG", "ind", "sec") == ["S1", "S2", "S3"]
+
+
+def test_peer_suggestions_keep_comparable_industry_peers():
+    from data.provider import YFinanceProvider
+
+    p = YFinanceProvider()
+    p._yf = _fake_yf({"KO": 0.5, "PEP": 0.25, "MNST": 0.12, "KDP": 0.06, "SMALL": 0.01}, ["X"])
+    assert p.peer_suggestions("KO", "ind", "sec") == ["PEP", "MNST", "KDP"]
