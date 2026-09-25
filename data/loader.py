@@ -115,4 +115,5 @@ class MultiProvider:
 
     def fundamental_metrics(self, ticker: str) -> dict:
         d = self._get(ticker)
-        return derive_metrics(d["info"], d["market"], d["income"], d["balance"], d["cashflow"])
+        return derive_metrics(d["info"], d["market"], d["income"], d["balance"], d["cashflow"],
+                              d["consensus"])
