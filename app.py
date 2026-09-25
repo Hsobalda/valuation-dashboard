@@ -15,8 +15,8 @@ import streamlit as st
 import pandas as pd
 
 from data import MultiProvider, sample_tickers
-from brief import build_brief, dcf_applicable, derive_starting_assumptions, reinvestment_history, screen_peers
-from engine import comps_analysis, implied_revenue_growth, run_scenarios, run_valuation
+from brief import build_brief, captive_finance_likely, dcf_applicable, derive_starting_assumptions, reinvestment_history, screen_peers
+from engine import comps_analysis, implied_return, implied_revenue_growth, run_scenarios, run_valuation
 from ui import charts
 from ui.tables import projection_table, reinvestment_history_table
 from ui.assumptions import render_assumption_panel
@@ -69,9 +69,18 @@ except Exception as e:
 
 if source == "live":
     inc_years = provider.income_statement(ticker)["revenue"].dropna().index
+    head = provider.company_info(ticker)
+    notes = []
+    if provider.sec_rejected(ticker):
+        notes.append("SEC figures for " + ", ".join(f.replace("_", " ") for f in provider.sec_rejected(ticker))
+                     + " disagreed with Yahoo by over 10%, so Yahoo's were used")
+    if head.get("fx_rate", 1.0) != 1.0:
+        notes.append(f"reported in {head['reported_currency']}, converted to {head['currency']} at today's "
+                     f"rate of {head['fx_rate']:.4f}")
     st.caption(
         f"Financial statements: {'SEC 10-K filings, gaps filled from Yahoo Finance' if provider.uses_sec_filings(ticker) else 'Yahoo Finance'}"
         f" (FY{inc_years.min()}–FY{inc_years.max()}). Prices, estimates and targets: Yahoo Finance."
+        + "".join(f" Note: {n}." for n in notes)
     )
 
 if source == "sample":
@@ -209,6 +218,15 @@ else:
     upside = fair_value / price - 1 if price else float("nan")
     buy_zone = fair_value * (1.0 - assumptions.margin_of_safety)
 
+    if captive_finance_likely(info):
+        st.warning(
+            f"{info.get('name', ticker)} probably runs a finance arm that lends to its customers. "
+            "Its debt is in net debt here, but the loans it funds aren't counted as assets, so "
+            "this DCF understates the equity: treat it as a floor. Professionals value the "
+            "finance arm separately, roughly at its book equity.",
+            icon=":material/account_balance:",
+        )
+
     if res.equity_value_per_share <= 0:
         st.warning(
             "In the base case debt exceeds the value of the operations, so the equity is "
@@ -216,12 +234,26 @@ else:
             "shown comes from the bull case; check the assumptions first."
         )
 
-    m1, m2, m3, m4 = st.columns(4)
+    expected = implied_return(
+        price, metrics["revenue"], assumptions, net_debt=metrics["net_debt"],
+        minority_interest=metrics["minority_interest"], shares_diluted=metrics["shares_diluted"],
+        years_since_fy_end=metrics["years_since_fy_end"],
+    )
+    r = assumptions.discount_rate
+    m1, m2, m3, m4, m5 = st.columns(5)
     m1.metric("Fair value / share", fmt_money(fair_value, ccy),
               help="Probability-weighted across the bear, base and bull cases below")
     m2.metric("Upside / downside vs price", fmt_pct(upside))
-    m3.metric("Buy zone (≤)", fmt_money(buy_zone, ccy))
-    m4.metric("Terminal value % of EV", fmt_pct(res.terminal_share_of_ev))
+    m3.metric(
+        "Expected return at today's price",
+        fmt_pct(expected) if expected is not None else ("under 3%" if price > res.equity_value_per_share else "over 30%"),
+        delta=f"{(expected - r) * 100:+.1f} pts vs your {r:.0%}" if expected is not None else None,
+        help="The annual return the stock offers at today's price if the base-case assumptions "
+             "hold: the discount rate at which the DCF equals the price. Compare it with your "
+             "required return, an index fund or bonds.",
+    )
+    m4.metric("Buy zone (≤)", fmt_money(buy_zone, ccy))
+    m5.metric("Terminal value % of EV", fmt_pct(res.terminal_share_of_ev))
 
     implied = implied_revenue_growth(
         price, metrics["revenue"], assumptions, net_debt=metrics["net_debt"],
@@ -446,6 +478,7 @@ if run is not None:
         "currency": ccy,
         "price": price,
         "fair_value": fair_value,
+        "expected_return": expected,
         **{s.name.lower(): s.value_per_share for s in scen.scenarios},
         "buy_zone": buy_zone,
         "margin_of_safety": assumptions.margin_of_safety,

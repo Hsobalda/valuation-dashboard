@@ -27,7 +27,8 @@ The app runs top to bottom in six sections.
    margin from the annual report, so mix shift (e.g. Apple's Services outgrowing
    Products at higher margins) flows into the valuation.
 3. Valuation: probability-weighted fair value across bear, base and bull
-   cases; a reverse DCF (the growth the share price implies); your value against
+   cases; the expected return at today's price (an IRR, set against your required
+   return); a reverse DCF (the growth the share price implies); your value against
    analysts' price targets; a sensitivity table; the Stage 1 projection beside
    the company's actual capex history; and an Excel download of the model.
 4. Relative valuation (context only, not part of fair value): candidate peers with the reason each
@@ -58,7 +59,9 @@ net capex and working capital, so
 
 The same rule runs through every stage, so the model can't assume growth for
 free. NOPAT comes from a revenue growth path and an EBIT margin that moves from
-its latest level to a target (seeded with the historical median) over five years.
+its latest level to a target over five years. The target is seeded halfway
+between today's margin and the 10-year median: margins tend to revert, but only
+partly, and full reversion would halve Amazon's margin.
 Growth in years 1 and 2 is seeded from analyst consensus where available, then
 moves in a straight line to a year-5 rate that is the analyst's own view.
 
@@ -93,18 +96,30 @@ shows the terminal value as a multiple of final-year NOPAT beside the multiple
 the market pays today, which makes the terminal assumption easy to challenge.
 
 Starting assumptions come from the company's history with guards against
-distorted years: historical and year-5 growth seeds are capped at 15%, the
-target margin is the median rather than the mean, and with no positive ROIC
-history the seed is the discount rate.
+distorted years: historical and year-5 growth seeds are capped at 15%, the tax
+rate is the median over the last five profitable years (one year is often
+distorted by one-off items; a decade can reach back to a different tax regime),
+and with no positive ROIC history the ROIC seed is the discount rate.
 
 Fair value is the probability-weighted value of bear, base and bull cases
 (25/50/25 by default), each floored at zero since shareholders can't lose more
-than they invest. Enterprise value less net debt and minority interest gives
-equity value, which is divided by diluted shares (current shares outstanding
+than they invest. Net debt is debt less cash, short-term investments and
+long-term marketable securities (Apple holds about $78bn outside cash).
+Enterprise value less net debt and minority interest gives equity value, which is divided by diluted shares (current shares outstanding
 scaled by the latest year's diluted/basic ratio). The margin of safety comes from
 an uncertainty rating (Low 20%, Medium 30%, High 40%, Very high 50%, modelled on
 Morningstar's uncertainty ratings), seeded from margin stability, leverage, beta
 and free cash flow history.
+
+Because the discount rate is a fixed hurdle rather than a market estimate, the
+headline "upside" mostly answers "does this beat 10%?". The expected return at
+today's price answers the same question directly: across 30 large US and UK
+companies in September 2026 the median was about 5.5%, which is why most of
+them screen as expensive against a 10% hurdle.
+
+Carmakers and machinery makers with a finance arm (Ford, GM, Caterpillar,
+Deere) get a warning: the finance arm's debt sits in net debt but the customer
+loans it funds aren't counted, so the DCF understates the equity.
 
 Quality metrics include ROIC, gross/operating/net margins, margin volatility and
 FCF conversion (FCF / net income).
@@ -125,10 +140,13 @@ Mastercard alongside card lenders trading at a sixth of its revenue multiple).
 Candidates come from the same industry; those with a similar operating margin
 (within 1.5x, or 3 percentage points) are suggested, and the rest are shown with
 the reason they were left out. Medians exclude the target itself and any negative
-multiples (e.g. P/E for a loss-making peer). Companies whose share price and
-financial statements are in different currencies (typically a foreign company's
-US listing) are left out rather than compared on meaningless ratios; valuing
-them properly needs exchange-rate and ADR-ratio adjustments.
+multiples (e.g. P/E for a loss-making peer).
+
+Currency: a home listing that reports in another currency (Shell and AstraZeneca
+report in dollars, Unilever in euros, all trade in London) has its statements
+converted into the share-price currency at today's rate, which leaves growth
+rates and margins unchanged. A foreign company's US listing (an ADR, such as
+TSMC's) is left out instead, since one ADR can represent several home shares.
 
 ## Data
 
@@ -136,7 +154,10 @@ them properly needs exchange-rate and ADR-ratio adjustments.
   10-K filings), typically 15-19 years, with any gaps filled from Yahoo. The
   parser merges the tags a company has used over time (e.g. Apple's switch from
   `SalesRevenueNet` to `RevenueFromContractWithCustomer...` in 2017), keeps only
-  full fiscal years, and takes restated figures over originals.
+  full fiscal years, and takes restated figures over originals. Companies tag
+  some lines inconsistently (Coca-Cola's debt assembled to $1.5bn against an
+  actual $45bn), so each SEC line is cross-checked against Yahoo on the years
+  both cover and dropped if they differ by more than 10%; the app says which.
 - Everything else (prices, market data, analyst estimates and targets, and
   statements for non-US companies) comes from Yahoo Finance via `yfinance`.
 - Offline, the app falls back to bundled sample data for AAPL, MSFT, PEP, T

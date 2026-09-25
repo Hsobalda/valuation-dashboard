@@ -6,7 +6,7 @@ yfinance, so every calculation can be tested in isolation.
 
 from .dcf import ValuationResult, dcf_3stage
 from .projection import Projection, project
-from .reverse import implied_revenue_growth
+from .reverse import implied_return, implied_revenue_growth
 from .scenarios import Scenario, ScenarioRun, run_scenarios
 from .quality import (
     fcf_conversion_series,
@@ -32,6 +32,7 @@ __all__ = [
     "project",
     "value_per_share",
     "implied_revenue_growth",
+    "implied_return",
     "Scenario",
     "ScenarioRun",
     "run_scenarios",

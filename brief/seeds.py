@@ -65,11 +65,13 @@ def derive_starting_assumptions(provider, ticker: str) -> dict:
     source = f"consensus of {cons['analysts']} analysts (Yahoo)" if has_consensus else hist_note
 
     ebit_margin = _latest(inc, "operating_income") / latest_rev if latest_rev else 0.0
-    # normalised margin: the median over the history, so one abnormal year
-    # (a shutdown, a one-off gain) neither sets nor distorts "normal"
+    # target: halfway from today's margin to the 10-year median. Margins tend to
+    # revert, but only partly; full reversion would halve Amazon's margin and
+    # nearly halve Nvidia's. The median keeps one abnormal year out of "normal".
     margins = ((inc["operating_income"] / inc["revenue"]).dropna()
                if "operating_income" in inc.columns else pd.Series(dtype=float))
-    target_margin = float(margins.median()) if margins.size else ebit_margin
+    median_margin = float(margins.median()) if margins.size else ebit_margin
+    target_margin = (ebit_margin + median_margin) / 2
     ebit_margin, target_margin = (min(max(m, -0.30), 0.75) for m in (ebit_margin, target_margin))
     # bear/bull margin swing: how much the margin has actually moved, at least 2pp
     margin_swing = min(max(float(margins.std()) if margins.size >= 3 else 0.0, 0.02), 0.10)
@@ -80,10 +82,13 @@ def derive_starting_assumptions(provider, ticker: str) -> dict:
     roic_avg = float(roic_hist.mean()) if roic_hist.size else float("nan")
     roic = min(max(roic_avg, 0.01), 1.0) if roic_avg > 0 else DISCOUNT_RATE
 
-    # effective tax rate (latest year)
-    pretax = _latest(inc, "pretax_income")
-    tax = _latest(inc, "income_tax")
-    tax_rate = min(max(tax / pretax, 0.0), 0.5) if pretax > 0 else 0.21
+    # tax: median effective rate over the last 5 profitable years. One year is
+    # often distorted by one-off charges (Intel's hit a 50% cap); a whole decade
+    # can reach back to a different tax regime (Nvidia's 2016-22 rates were far
+    # below today's)
+    pretax, tax = _col(inc, "pretax_income"), _col(inc, "income_tax")
+    rates = (tax / pretax)[pretax > 0].dropna().tail(5)
+    tax_rate = min(max(float(rates.median()), 0.0), 0.40) if rates.size else 0.21
 
     # fundamental growth = reinvestment rate x ROIC: the growth the company's own
     # reinvestment can fund (net capex only; excludes working capital and M&A)
@@ -134,7 +139,8 @@ def derive_starting_assumptions(provider, ticker: str) -> dict:
             ),
             "ebit_margin": f"FY{revenue.index[-1]} operating margin",
             "target_ebit_margin": (
-                f"median operating margin FY{margins.index[0]}-{margins.index[-1]}; "
+                f"halfway between today's margin and the FY{margins.index[0]}-{margins.index[-1]} "
+                f"median of {median_margin:.1%} (margins revert, but only partly); "
                 "the margin moves here in a straight line by year 5"
                 if margins.size else "no margin history: set to the latest margin"
             ),
@@ -145,7 +151,8 @@ def derive_starting_assumptions(provider, ticker: str) -> dict:
                 if roic_avg > 0 else "no positive ROIC history: set to the discount rate, "
                 "so growth neither creates nor destroys value"
             ),
-            "tax_rate": f"FY{revenue.index[-1]} effective tax rate",
+            "tax_rate": (f"median effective tax rate over {rates.size} profitable years"
+                         if rates.size else "no profitable years: US federal rate of 21%"),
             "fade_years": "default: set from the moat evidence in Panel C",
             "terminal_growth": "default: long-run nominal GDP growth, typically 2-3%",
             "discount_rate": (

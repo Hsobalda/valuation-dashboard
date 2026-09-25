@@ -130,3 +130,21 @@ def test_years_since_fiscal_year_end():
     assert _years_since(half_year_ago) == pytest.approx(0.5, abs=0.01)
     assert _years_since(None) == 0.0
     assert _years_since("2000-01-01") == 1.5  # stale data capped
+
+
+def test_currency_conversion_scales_money_not_share_counts():
+    import pandas as pd
+
+    from data.provider import convert_currency
+
+    df = pd.DataFrame({"revenue": [100.0], "eps_diluted": [2.0], "shares_diluted_avg": [50.0]}, index=[2025])
+    out = convert_currency(df, 0.75)
+    assert out.loc[2025].to_dict() == {"revenue": 75.0, "eps_diluted": 1.5, "shares_diluted_avg": 50.0}
+
+
+def test_foreign_us_listings_are_not_converted():
+    from data.provider import is_foreign_us_listing
+
+    assert is_foreign_us_listing("Taiwan", "USD")          # TSMC's ADR
+    assert not is_foreign_us_listing("United Kingdom", "GBP")  # Shell in London
+    assert not is_foreign_us_listing("United States", "USD")

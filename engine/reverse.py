@@ -1,6 +1,8 @@
-"""Reverse DCF: the revenue growth the current share price implies."""
+"""Reverse DCF: the growth, and the return, the current share price implies."""
 
 from __future__ import annotations
+
+from dataclasses import replace
 
 from .valuation import Assumptions, value_per_share
 
@@ -30,6 +32,39 @@ def implied_revenue_growth(
     if gap_low * gap_high > 0:
         return None
     for _ in range(60):  # bisection: brackets shrink 2^60-fold, far below display precision
+        mid = (low + high) / 2
+        gap_mid = gap(mid)
+        if gap_low * gap_mid <= 0:
+            high = mid
+        else:
+            low, gap_low = mid, gap_mid
+    return (low + high) / 2
+
+
+def implied_return(
+    price: float,
+    base_revenue: float,
+    assumptions: Assumptions,
+    net_debt: float = 0.0,
+    minority_interest: float = 0.0,
+    shares_diluted: float = 1.0,
+    years_since_fy_end: float = 0.0,
+    high: float = 0.30,
+) -> float | None:
+    """Annual return the stock offers at `price` if your other assumptions hold:
+    the discount rate at which DCF value equals the price (an IRR). Directly
+    comparable with your required return. None if outside the searchable range.
+    """
+    def gap(r: float) -> float:
+        a = replace(assumptions, discount_rate=r)
+        return value_per_share(base_revenue, a, net_debt, minority_interest, shares_diluted,
+                               years_since_fy_end) - price
+
+    low = assumptions.terminal_growth + 0.001
+    gap_low, gap_high = gap(low), gap(high)
+    if gap_low * gap_high > 0:
+        return None
+    for _ in range(60):
         mid = (low + high) / 2
         gap_mid = gap(mid)
         if gap_low * gap_mid <= 0:

@@ -62,7 +62,7 @@ def derive_metrics(info: dict, market: dict, income: pd.DataFrame,
     eps = f(income, "eps_diluted")
     net_income = f(income, "net_income")
     cash = f(balance, "cash_and_equiv")
-    st_inv = f(balance, "short_term_investments")
+    st_inv = f(balance, "short_term_investments") + f(balance, "long_term_investments")
     debt = f(balance, "total_debt")
     equity = f(balance, "stockholder_equity")
     minority = f(balance, "minority_interest")
@@ -192,6 +192,22 @@ class SampleProvider:
 
 # --- live (yfinance) provider -----------------------------------------------
 
+def is_foreign_us_listing(country: str, quote_currency: str) -> bool:
+    """A non-US company's US-dollar listing (usually an ADR): converting currency
+    isn't enough, since one ADR can represent several home shares."""
+    return quote_currency == "USD" and country not in ("United States", "")
+
+
+def convert_currency(df: pd.DataFrame, rate: float) -> pd.DataFrame:
+    """Scale every money column by `rate`; share counts are left alone."""
+    if rate == 1.0 or df.empty:
+        return df
+    out = df.copy()
+    money = [c for c in out.columns if c not in ("shares_basic_avg", "shares_diluted_avg")]
+    out[money] = out[money] * rate
+    return out
+
+
 class YFinanceProvider:
     """Live data via yfinance. Not exercised in the offline sandbox."""
 
@@ -201,6 +217,7 @@ class YFinanceProvider:
         import yfinance as yf  # deferred import: only this layer may import it
 
         self._yf = yf
+        self._fx_cache: dict[str, float] = {}
 
     def _ticker(self, ticker: str):
         return self._yf.Ticker(ticker)
@@ -208,6 +225,27 @@ class YFinanceProvider:
     # Some exchanges quote prices in minor units (London in pence) while market
     # cap and financial statements are in the major unit.
     _MINOR_UNITS = {"GBp": "GBP", "GBX": "GBP", "ZAc": "ZAR", "ILA": "ILS"}
+
+    def _currencies(self, info: dict) -> tuple[str, str]:
+        """(quote currency, reporting currency), minor units mapped to major."""
+        cur = self._MINOR_UNITS.get(info.get("currency"), info.get("currency", ""))
+        fin = self._MINOR_UNITS.get(info.get("financialCurrency"), info.get("financialCurrency", "")) or cur
+        return cur, fin
+
+    def _fx(self, ticker: str) -> float:
+        """Rate taking reported figures into the quote currency, for a home listing
+        that reports in another currency (Shell: dollar accounts, sterling shares).
+        Every year uses today's rate, so growth rates and margins are unchanged.
+        1.0 when no conversion is needed, or for a foreign US listing, which stays
+        flagged as mismatched."""
+        if ticker not in self._fx_cache:
+            info = self._ticker(ticker).info or {}
+            cur, fin = self._currencies(info)
+            rate = 1.0
+            if fin != cur and not is_foreign_us_listing(info.get("country", ""), cur):
+                rate = float(self._yf.Ticker(f"{fin}{cur}=X").fast_info["last_price"])
+            self._fx_cache[ticker] = rate
+        return self._fx_cache[ticker]
 
     @staticmethod
     def _normalize(raw: pd.DataFrame, mapping: dict) -> pd.DataFrame:
@@ -229,7 +267,7 @@ class YFinanceProvider:
         raw = self._ticker(ticker).income_stmt
         df = self._normalize(raw, S.YF_INCOME_MAP)
         # sign normalisation: capex/dividends handled in cash_flow; income is fine
-        return self._sign_fix_income(df)
+        return convert_currency(self._sign_fix_income(df), self._fx(ticker))
 
     def _sign_fix_income(self, df: pd.DataFrame) -> pd.DataFrame:
         # cost_of_revenue sometimes reported as negative -> make positive
@@ -243,7 +281,8 @@ class YFinanceProvider:
         raw = self._ticker(ticker).balance_sheet
         df = self._normalize(raw, S.YF_BALANCE_MAP)
         country = (self._ticker(ticker).info or {}).get("country", "")
-        return exclude_operating_leases(df) if country == "United States" else df
+        df = exclude_operating_leases(df) if country == "United States" else df
+        return convert_currency(df, self._fx(ticker))
 
     def cash_flow(self, ticker: str, period: str = "annual") -> pd.DataFrame:
         raw = self._ticker(ticker).cashflow
@@ -252,19 +291,23 @@ class YFinanceProvider:
         for field in ("capital_expenditure", "dividends_paid", "stock_buybacks", "stock_based_compensation"):
             if field in df.columns:
                 df[field] = df[field].abs()
-        return df
+        return convert_currency(df, self._fx(ticker))
 
     def company_info(self, ticker: str) -> dict:
         info = self._ticker(ticker).info or {}
+        cur, fin = self._currencies(info)
+        rate = self._fx(ticker)
         return {
             "name": info.get("shortName") or info.get("longName") or ticker,
             "sector": info.get("sector", ""),
             "reports_ebitda": info.get("ebitda") is not None,
             "industry": info.get("industry", ""),
             "summary": info.get("longBusinessSummary", ""),
-            "currency": self._MINOR_UNITS.get(info.get("currency"), info.get("currency", "USD")),
-            "financial_currency": self._MINOR_UNITS.get(info.get("financialCurrency"),
-                                                        info.get("financialCurrency", "")),
+            "currency": cur or "USD",
+            # after conversion the statements are in the quote currency
+            "financial_currency": cur if rate != 1.0 else fin,
+            "reported_currency": fin,
+            "fx_rate": rate,
             "industry_key": info.get("industryKey", ""),
             "sector_key": info.get("sectorKey", ""),
             "beta": float(info.get("beta") or 0.0),
@@ -279,7 +322,7 @@ class YFinanceProvider:
         return {
             "fiscal_year_end": dt.date.fromtimestamp(fy_end).isoformat() if fy_end else None,
             "price": price,
-            "eps_forward": float(info.get("forwardEps") or 0.0),
+            "eps_forward": float(info.get("forwardEps") or 0.0) * self._fx(ticker),  # reported currency
             "target_mean": float(info.get("targetMeanPrice") or 0.0) / unit,
             "target_low": float(info.get("targetLowPrice") or 0.0) / unit,
             "target_high": float(info.get("targetHighPrice") or 0.0) / unit,
@@ -291,8 +334,7 @@ class YFinanceProvider:
     def peer_profile(self, ticker: str) -> dict:
         """What's needed to judge a candidate peer, from one cheap info call."""
         info = self._ticker(ticker).info or {}
-        cur = self._MINOR_UNITS.get(info.get("currency"), info.get("currency", ""))
-        fin = self._MINOR_UNITS.get(info.get("financialCurrency"), info.get("financialCurrency", ""))
+        cur, fin = self._currencies(info)
         unit = 100.0 if info.get("currency") in self._MINOR_UNITS else 1.0
         return {
             "ticker": ticker,
@@ -303,7 +345,7 @@ class YFinanceProvider:
             "market_cap": float(info.get("marketCap") or 0.0),
             "operating_margin": info.get("operatingMargins"),
             "reports_ebitda": info.get("ebitda") is not None,
-            "currency_mismatch": bool(fin) and fin != cur,
+            "currency_mismatch": fin != cur and is_foreign_us_listing(info.get("country", ""), cur),
         }
 
     def consensus(self, ticker: str) -> dict:
@@ -311,9 +353,10 @@ class YFinanceProvider:
         est = self._ticker(ticker).revenue_estimate
         if est is None or est.empty or not {"0y", "+1y"} <= set(est.index):
             return {}
+        rate = self._fx(ticker)  # estimates are in the reporting currency
         return {
-            "revenue_y1": float(est.loc["0y", "avg"]),
-            "revenue_y2": float(est.loc["+1y", "avg"]),
+            "revenue_y1": float(est.loc["0y", "avg"]) * rate,
+            "revenue_y2": float(est.loc["+1y", "avg"]) * rate,
             "analysts": int(est.loc["0y", "numberOfAnalysts"]),
         }
 

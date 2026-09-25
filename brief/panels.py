@@ -81,14 +81,15 @@ def _align_years(a: pd.Series, b: pd.Series) -> tuple[pd.Series, pd.Series, list
     return a_aligned, b_aligned, dropped
 
 
+def _net_debt(balance: pd.DataFrame) -> pd.Series:
+    """Debt less cash, short-term investments and long-term marketable securities."""
+    return (_col(balance, "total_debt") - _col(balance, "cash_and_equiv")
+            - _col(balance, "short_term_investments") - _col(balance, "long_term_investments"))
+
+
 def _invested_capital(balance: pd.DataFrame) -> pd.Series:
-    # financing approach: total debt + equity - cash - short-term investments
-    return (
-        _col(balance, "total_debt")
-        + _col(balance, "stockholder_equity")
-        - _col(balance, "cash_and_equiv")
-        - _col(balance, "short_term_investments")
-    )
+    # financing approach: equity plus net debt (debt less cash and investments)
+    return _col(balance, "stockholder_equity") + _net_debt(balance)
 
 
 # Balance-sheet businesses: debt is funding for the product, not financing, so
@@ -104,6 +105,15 @@ def dcf_applicable(info: dict) -> bool:
     if (info.get("industry") or "").startswith(_NO_DCF_INDUSTRIES):
         return False
     return not (info.get("sector") == "Financial Services" and not info.get("reports_ebitda", True))
+
+
+# Industries where manufacturers usually run a finance arm lending to customers
+# (Ford Credit, GM Financial, Cat Financial, John Deere Financial)
+_CAPTIVE_FINANCE_INDUSTRIES = ("Auto Manufacturers", "Farm & Heavy Construction Machinery")
+
+
+def captive_finance_likely(info: dict) -> bool:
+    return (info.get("industry") or "") in _CAPTIVE_FINANCE_INDUSTRIES
 
 
 def screen_peers(target: dict, candidates: list[dict]) -> list[dict]:
@@ -273,8 +283,7 @@ def panel_capital_allocation(provider, ticker: str) -> dict:
     shares = _col(inc, "shares_diluted_avg").replace(0, pd.NA).dropna().astype(float)
     share_cagr = _cagr(shares)
 
-    net_debt = (_col(bal, "total_debt") - _col(bal, "cash_and_equiv")
-                - _col(bal, "short_term_investments")).dropna()
+    net_debt = _net_debt(bal).dropna()
     nd_start = float(net_debt.iloc[0]) if net_debt.size else float("nan")
     nd_end = float(net_debt.iloc[-1]) if net_debt.size else float("nan")
 
@@ -318,7 +327,7 @@ def panel_risk(provider, ticker: str) -> dict:
     info = provider.company_info(ticker)
 
     ebitda = _ebitda(inc)
-    net_debt = _col(bal, "total_debt") - _col(bal, "cash_and_equiv") - _col(bal, "short_term_investments")
+    net_debt = _net_debt(bal)
     net_debt_a, ebitda_a, nd_ebitda_dropped = _align_years(net_debt, ebitda)
     nd_ebitda = net_debt_a / ebitda_a.replace(0, pd.NA)
     debt_equity = _col(bal, "total_debt") / _col(bal, "stockholder_equity").replace(0, pd.NA)

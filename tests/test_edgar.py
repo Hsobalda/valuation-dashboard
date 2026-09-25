@@ -55,3 +55,27 @@ def test_per_share_units_are_read():
 
 def test_no_us_gaap_facts_returns_none():
     assert statements_from_facts({"facts": {"ifrs-full": {}}}) is None
+
+
+def test_cross_check_drops_sec_lines_that_disagree_with_yahoo():
+    import pandas as pd
+
+    from data.loader import cross_check
+
+    years = [2023, 2024, 2025]
+    sec = pd.DataFrame({"total_debt": [1.5, 1.6, 1.5], "cash_and_equiv": [10.0, 11.0, 12.0],
+                        "goodwill": [5.0, 5.0, 5.0]}, index=years)
+    yahoo = pd.DataFrame({"total_debt": [44.0, 45.0, 45.5], "cash_and_equiv": [10.2, 10.9, 12.1]},
+                         index=years)
+    kept, rejected = cross_check(sec, yahoo)
+    assert rejected == ["total_debt"]            # Coca-Cola-style miss: $1.5bn vs $45bn
+    assert list(kept.columns) == ["cash_and_equiv", "goodwill"]  # close match kept; unchecked kept
+
+
+def test_grand_total_debt_tag_preferred():
+    facts = {"facts": {"us-gaap": {
+        "Revenues": _tag(_fact(100.0, "2025-12-31", "2025-01-01")),
+        "DebtLongtermAndShorttermCombinedAmount": _tag(_fact(158.0, "2025-12-31")),
+        "LongTermDebtCurrent": _tag(_fact(19.0, "2025-12-31")),
+    }}}
+    assert statements_from_facts(facts)["balance"].loc[2025, "total_debt"] == 158.0

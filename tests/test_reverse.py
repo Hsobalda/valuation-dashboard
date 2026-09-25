@@ -20,3 +20,19 @@ def test_other_assumptions_held_fixed():
 
 def test_unreachable_price_returns_none():
     assert implied_revenue_growth(1e9, 1000.0, A, **BRIDGE) is None
+
+
+def test_implied_return_recovers_discount_rate():
+    from dataclasses import replace
+
+    from engine.reverse import implied_return
+
+    price = value_per_share(1000.0, replace(A, discount_rate=0.075), **BRIDGE)
+    assert implied_return(price, 1000.0, A, **BRIDGE) == pytest.approx(0.075, abs=1e-6)
+
+
+def test_cheaper_price_means_higher_return():
+    from engine.reverse import implied_return
+
+    fair = value_per_share(1000.0, A, **BRIDGE)
+    assert implied_return(fair * 0.8, 1000.0, A, **BRIDGE) > implied_return(fair, 1000.0, A, **BRIDGE)

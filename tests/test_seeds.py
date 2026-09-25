@@ -1,4 +1,5 @@
 import pandas as pd
+import pytest
 
 from brief import derive_starting_assumptions
 from brief.seeds import DISCOUNT_RATE, MAX_SEED_GROWTH
@@ -33,10 +34,10 @@ def test_seed_growth_capped_and_flagged():
     assert "capped" in s["provenance"]["growth_y1"]
 
 
-def test_target_margin_is_median_so_one_bad_year_does_not_set_normal():
+def test_target_margin_is_halfway_to_median_so_one_bad_year_does_not_set_normal():
     s = derive_starting_assumptions(_Rebound(), "AAPL")
     margins = pd.Series([0.20, -0.75, 1 / 6, 25 / 130, 0.20, 0.20])
-    assert s["target_ebit_margin"] == margins.median()
+    assert s["target_ebit_margin"] == pytest.approx((0.20 + margins.median()) / 2)
 
 
 def test_no_positive_roic_history_seeds_discount_rate():

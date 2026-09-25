@@ -48,12 +48,18 @@ BALANCE_TAGS = {
                            "StockholdersEquityIncludingPortionAttributableToNoncontrollingInterest"],
     "minority_interest": ["MinorityInterest"],
     "goodwill": ["Goodwill"],
+    # explicitly non-current marketable securities: cash-like, but outside cash
+    # and short-term investments (Apple holds ~$78bn)
+    "long_term_investments": ["MarketableSecuritiesNoncurrent", "AvailableForSaleSecuritiesDebtSecuritiesNoncurrent"],
 }
-# total debt is assembled from parts; operating lease liabilities are excluded,
-# consistent with US GAAP rent sitting inside EBIT
-_DEBT_TOTAL = ["LongTermDebt"]
-_DEBT_NONCURRENT = ["LongTermDebtNoncurrent"]
-_DEBT_CURRENT = ["LongTermDebtCurrent"]
+# Total debt: a reported total where one exists, else assembled from parts.
+# Tagging varies a lot between companies, so the loader cross-checks the result
+# against Yahoo and drops it when they disagree. Operating lease liabilities are
+# excluded, consistent with US GAAP rent sitting inside EBIT.
+_DEBT_GRAND_TOTAL = ["DebtLongtermAndShorttermCombinedAmount"]
+_DEBT_TOTAL = ["LongTermDebt", "LongTermDebtAndCapitalLeaseObligationsIncludingCurrentMaturities"]
+_DEBT_NONCURRENT = ["LongTermDebtNoncurrent", "LongTermDebtAndCapitalLeaseObligations"]
+_DEBT_CURRENT = ["LongTermDebtCurrent", "LongTermDebtAndCapitalLeaseObligationsCurrent"]
 _DEBT_SHORT = ["CommercialPaper", "ShortTermBorrowings"]
 CASHFLOW_TAGS = {
     "operating_cash_flow": ["NetCashProvidedByUsedInOperatingActivities",
@@ -121,7 +127,8 @@ def statements_from_facts(facts: dict) -> dict | None:
 
     long_term = part(_DEBT_TOTAL).combine_first(
         pd.concat([part(_DEBT_NONCURRENT), part(_DEBT_CURRENT)], axis=1).sum(axis=1, min_count=1))
-    debt = pd.concat([long_term, part(_DEBT_SHORT[:1]), part(_DEBT_SHORT[1:])], axis=1).sum(axis=1, min_count=1)
+    assembled = pd.concat([long_term, part(_DEBT_SHORT[:1]), part(_DEBT_SHORT[1:])], axis=1).sum(axis=1, min_count=1)
+    debt = part(_DEBT_GRAND_TOTAL).combine_first(assembled)
     if not debt.dropna().empty:
         balance["total_debt"] = debt
     return {"income": income, "balance": balance.sort_index(), "cashflow": cashflow}

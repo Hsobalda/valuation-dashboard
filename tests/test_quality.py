@@ -145,3 +145,11 @@ def test_screen_peers_tolerates_small_gaps_on_thin_margins():
     out = screen_peers(tesco, [{"ticker": "ACI", "operating_margin": 0.014},
                                {"ticker": "SFM", "operating_margin": 0.075}])
     assert [c["suggested"] for c in out] == [True, False]
+
+
+def test_captive_finance_flagged_for_carmakers_and_machinery():
+    from brief import captive_finance_likely
+
+    assert captive_finance_likely({"industry": "Auto Manufacturers"})
+    assert captive_finance_likely({"industry": "Farm & Heavy Construction Machinery"})
+    assert not captive_finance_likely({"industry": "Consumer Electronics"})

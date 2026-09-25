@@ -7,6 +7,8 @@ source recorded so the UI can banner it honestly.
 
 from __future__ import annotations
 
+import pandas as pd
+
 from .cache import cache_data
 from .edgar import EdgarClient
 from .provider import SampleProvider, YFinanceProvider, derive_metrics
@@ -30,6 +32,26 @@ def _live_available() -> bool:
 
 
 _EDGAR: EdgarClient | None = None
+
+
+def cross_check(sec: pd.DataFrame, yahoo: pd.DataFrame, tolerance: float = 0.10) -> tuple[pd.DataFrame, list[str]]:
+    """Drop SEC columns that disagree with Yahoo where both report the same years.
+
+    SEC figures are assembled from XBRL tags that companies use inconsistently
+    (Coca-Cola's debt came out at $1.5bn against $45bn), so a line is kept only
+    if its median gap to Yahoo on overlapping years is within `tolerance`.
+    Columns Yahoo doesn't have can't be checked and are kept.
+    """
+    bad = []
+    for col in sec.columns.intersection(yahoo.columns):
+        s, y = sec[col].align(yahoo[col], join="inner")
+        both = s.notna() & y.notna() & (y.abs() > 0)
+        if not both.any():
+            continue
+        gap = ((s[both] - y[both]).abs() / y[both].abs()).median()
+        if gap > tolerance:
+            bad.append(col)
+    return sec.drop(columns=bad), bad
 
 
 def _sec_statements(ticker: str, info: dict) -> dict | None:
@@ -64,19 +86,23 @@ def load_company(ticker: str) -> dict:
             if income.empty and balance.empty and cashflow.empty:
                 raise RuntimeError("no statements")
             # SEC filings give 15+ years; Yahoo fills any gaps (and is used alone
-            # outside the US)
+            # outside the US). A SEC line that disagrees with Yahoo is dropped.
             sec = _sec_statements(ticker, info)
+            rejected: list[str] = []
             if sec:
-                income = sec["income"].combine_first(income)
-                balance = sec["balance"].combine_first(balance)
-                cashflow = sec["cashflow"].combine_first(cashflow)
+                merged = {}
+                for name, yahoo in (("income", income), ("balance", balance), ("cashflow", cashflow)):
+                    checked, bad = cross_check(sec[name], yahoo)
+                    merged[name] = checked.combine_first(yahoo)
+                    rejected += bad
+                income, balance, cashflow = merged["income"], merged["balance"], merged["cashflow"]
             try:
                 consensus = p.consensus(ticker)
             except Exception:
                 consensus = {}
             return {"source": "live", "info": info, "market": market,
                     "income": income, "balance": balance, "cashflow": cashflow,
-                    "consensus": consensus, "sec_filings": bool(sec)}
+                    "consensus": consensus, "sec_filings": bool(sec), "sec_rejected": rejected}
         except Exception:
             pass  # fall through to sample
     p = SampleProvider()
@@ -85,7 +111,7 @@ def load_company(ticker: str) -> dict:
             "income": p.income_statement(ticker),
             "balance": p.balance_sheet(ticker),
             "cashflow": p.cash_flow(ticker),
-            "consensus": {}, "sec_filings": False}
+            "consensus": {}, "sec_filings": False, "sec_rejected": []}
 
 
 @cache_data(ttl=86400)
@@ -150,6 +176,9 @@ class MultiProvider:
 
     def uses_sec_filings(self, ticker: str) -> bool:
         return self._get(ticker)["sec_filings"]
+
+    def sec_rejected(self, ticker: str) -> list[str]:
+        return self._get(ticker)["sec_rejected"]
 
     def peer_profiles(self, tickers: list[str]) -> list[dict]:
         return [p for p in (load_peer_profile(t) for t in tickers) if p]
