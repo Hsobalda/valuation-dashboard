@@ -39,6 +39,9 @@ the user can see where every input came from before changing it.
   because Yahoo reports no EBITDA for lenders.
 - Bear / base / bull scenarios on growth and margin, with a probability-weighted
   fair value.
+- Excel export: the base-case DCF as a workbook of live formulas (inputs in blue,
+  each with its source), so the model can be audited and changed in Excel. A test
+  recalculates the workbook and checks it matches the engine to the cent.
 - Valuation journal: save a valuation with a Buy / Watch / Pass decision and a
   thesis, then track the return since each call and a scorecard by decision.
   Kept locally in `journal/` (git-ignored) as a record against hindsight bias.
@@ -160,6 +163,7 @@ streamlit run app.py
 ## Tests
 
 ```bash
+pip install -r requirements-dev.txt
 python -m pytest -q
 ```
 

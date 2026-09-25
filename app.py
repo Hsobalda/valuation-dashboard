@@ -20,6 +20,7 @@ from engine import comps_analysis, implied_revenue_growth, run_scenarios, run_va
 from ui import charts
 from ui.tables import projection_table, reinvestment_history_table
 from ui.assumptions import render_assumption_panel
+from ui.excel_export import build_dcf_workbook
 from ui.journal import render_history, render_save_form
 
 st.set_page_config(page_title="Valuation Dashboard", layout="wide")
@@ -300,6 +301,36 @@ else:
         f"{assumptions.growth_y1:.1%} ÷ {assumptions.roic:.1%} = "
         f"{assumptions.growth_y1 / assumptions.roic:.0%} of NOPAT reinvested."
     )
+    prov = seed.get("provenance", {})
+    notes = {
+        k: (prov.get(k, "") if abs(getattr(assumptions, k) - seed[k]) < 1e-9
+            else f"Your input. Starting point was {seed[k]:.4g}: {prov.get(k, 'default')}")
+        for k in ("growth_y1", "growth_y2", "growth_y5", "ebit_margin", "target_ebit_margin", "tax_rate",
+                  "roic", "fade_years", "terminal_excess_return", "terminal_growth", "discount_rate")
+    }
+    notes.update(
+        base_revenue="Latest fiscal year revenue", net_debt="Total debt less cash and short-term investments",
+        shares_diluted="Current shares outstanding x latest diluted/basic ratio",
+        price="Share price when exported",
+        margin_of_safety=next((f"{r} uncertainty rating" for r, m in seed["uncertainty_mos"].items()
+                               if m == assumptions.margin_of_safety), ""),
+    )
+    st.download_button(
+        "Download this DCF as an Excel model", icon=":material/table_view:",
+        data=build_dcf_workbook({
+            "name": info.get("name", ticker), "ticker": ticker, "currency": ccy,
+            "base_year": int(provider.income_statement(ticker)["revenue"].dropna().index[-1]),
+            "base_revenue": metrics["revenue"], "net_debt": metrics["net_debt"],
+            "minority_interest": metrics["minority_interest"], "shares_diluted": metrics["shares_diluted"],
+            "price": price, "years_since_fy_end": metrics["years_since_fy_end"],
+            "data_source": "sample data" if source == "sample" else
+                           ("SEC filings + Yahoo" if provider.uses_sec_filings(ticker) else "Yahoo Finance"),
+        }, assumptions, notes),
+        file_name=f"{ticker}_DCF.xlsx",
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        help="The base case with every step as a live formula: change an input and the value updates.",
+    )
+
     hist = reinvestment_history(provider, ticker)
     if not hist.empty:
         st.markdown("#### What it has actually reinvested")
