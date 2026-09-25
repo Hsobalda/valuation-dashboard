@@ -101,16 +101,21 @@ def render_assumption_panel(seed: dict, ticker: str) -> Assumptions:
             key=f"{ticker}:terminal_growth", help=prov.get("terminal_growth"),
         )
         discount_rate = _pct_slider(
-            "Discount rate (required return)", 4.0, 16.0, seed["discount_rate"], 0.1,
+            "Discount rate (cost of capital)", 4.0, 16.0, seed["discount_rate"], 0.1,
             key=f"{ticker}:discount_rate", help=prov.get("discount_rate"),
         )
         ref = seed.get("wacc_reference")
         if ref:
             st.caption(
-                f"Reference WACC {ref['wacc']:.1%} · cost of equity {ref['cost_of_equity']:.1%} "
-                f"(r_f {ref['risk_free']:.1%} + β {ref['beta']:.2f} × ERP "
-                f"{ref['equity_risk_premium']:.1%}) · cost of debt {ref['cost_of_debt']:.1%}"
+                f"WACC {ref['wacc']:.1%}: cost of equity {ref['cost_of_equity']:.1%} "
+                f"(r_f {ref['risk_free']:.1%} + adjusted β {ref['beta_adjusted']:.2f} × ERP "
+                f"{ref['equity_risk_premium']:.1%}; raw β {ref['beta']:.2f}) · cost of debt "
+                f"{ref['cost_of_debt']:.1%}"
             )
+        hurdle_rate = _pct_slider(
+            "Your required return (buy test)", 4.0, 20.0, seed["hurdle_rate"], 0.5,
+            key=f"{ticker}:hurdle_rate", help=prov.get("hurdle_rate"),
+        )
 
     mos_by_rating = seed["uncertainty_mos"]
     rating = st.segmented_control(
@@ -162,6 +167,7 @@ def render_assumption_panel(seed: dict, ticker: str) -> Assumptions:
         fade_years=fade_years,
         terminal_growth=terminal_growth,
         discount_rate=discount_rate,
+        hurdle_rate=hurdle_rate,
         margin_of_safety=margin_of_safety,
         growth_swing=growth_swing,
         margin_swing=margin_swing,

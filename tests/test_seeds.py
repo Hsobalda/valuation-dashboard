@@ -2,7 +2,7 @@ import pandas as pd
 import pytest
 
 from brief import derive_starting_assumptions
-from brief.seeds import DISCOUNT_RATE, MAX_SEED_GROWTH
+from brief.seeds import MAX_SEED_GROWTH, moat_rating
 from data.provider import SampleProvider
 
 
@@ -40,6 +40,14 @@ def test_target_margin_is_halfway_to_median_so_one_bad_year_does_not_set_normal(
     assert s["target_ebit_margin"] == pytest.approx((0.20 + margins.median()) / 2)
 
 
-def test_no_positive_roic_history_seeds_discount_rate():
+def test_no_positive_roic_history_seeds_cost_of_capital():
     s = derive_starting_assumptions(_Rebound(), "AAPL")
-    assert s["roic"] == DISCOUNT_RATE
+    assert s["roic"] == s["discount_rate"]
+
+
+def test_moat_rating_from_roic_against_cost_of_capital():
+    wide = moat_rating(pd.Series([0.30, 0.28, 0.32, 0.29, 0.31]), 0.08)
+    narrow = moat_rating(pd.Series([0.12, 0.07, 0.11, 0.10, 0.06]), 0.08)
+    none = moat_rating(pd.Series([0.05, 0.09, 0.04, 0.06, 0.03]), 0.08)
+    assert (wide["fade_years"], narrow["fade_years"], none["fade_years"]) == (20, 10, 5)
+    assert "5 of 5 years" in wide["reason"]

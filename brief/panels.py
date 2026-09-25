@@ -357,7 +357,7 @@ def panel_risk(provider, ticker: str) -> dict:
 
     return {
         "title": "E. What could go wrong?",
-        "decision": "margin of safety",
+        "decision": "cost of capital (through beta) and margin of safety",
         "net_debt_to_ebitda": nd_ebitda,
         "latest_nd_ebitda": float(nd_ebitda.dropna().iloc[-1]) if nd_ebitda.dropna().size else float("nan"),
         "debt_to_equity": float(debt_equity.dropna().iloc[-1]) if debt_equity.dropna().size else float("nan"),
@@ -366,7 +366,7 @@ def panel_risk(provider, ticker: str) -> dict:
         "what_this_means": (
             "Higher leverage, more volatile cash flows and weaker earnings "
             "quality all mean more uncertain value, so a larger required "
-            "margin of safety. The discount rate stays at your required return."
+            "margin of safety; market risk also raises the cost of capital through beta."
         ),
     }
 

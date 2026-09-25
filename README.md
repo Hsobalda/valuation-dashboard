@@ -21,21 +21,22 @@ The app runs top to bottom in six sections.
 2. Assumptions: a revenue growth path (years 1-2 from analyst consensus, year 5
    your view) with a cross-check of historical, consensus and fundamental growth
    (reinvestment rate × ROIC); current and target margin; return on capital; fade
-   period; terminal growth; discount rate, with the company's WACC for reference;
-   bear/bull swings; and an uncertainty rating that sets the margin of safety.
+   period (seeded from the moat evidence); terminal growth; the discount rate (the
+   company's cost of capital); your own required return; bear/bull swings; and an
+   uncertainty rating that sets the margin of safety.
    Optionally, a segment build: enter each business segment's revenue, growth and
    margin from the annual report, so mix shift (e.g. Apple's Services outgrowing
    Products at higher margins) flows into the valuation.
 3. Valuation: probability-weighted fair value across bear, base and bull
-   cases; the expected return at today's price (an IRR, set against your required
-   return); a reverse DCF (the growth the share price implies); your value against
+   cases; the expected return at today's price (an IRR); a reverse DCF (the growth the share price implies); your value against
    analysts' price targets; a sensitivity table; the Stage 1 projection beside
    the company's actual capex history; and an Excel download of the model.
 4. Relative valuation (context only, not part of fair value): candidate peers with the reason each
    is or isn't suggested, then EV/EBITDA, P/E, forward P/E, EV/Revenue, forward
    EV/Revenue and P/B against the peer median. A football field sets the DCF
    ranges beside analyst targets and the price.
-5. Margin of safety: the buy-below price.
+5. Buy decision: two tests, a margin of safety below fair value and an expected
+   return at or above your required return.
 6. Valuation journal: save a valuation with a Buy / Watch / Pass decision and a
    thesis, then track the return since each call and a scorecard by decision. Kept
    locally in `journal/` (git-ignored), as a record against hindsight bias.
@@ -65,24 +66,35 @@ partly, and full reversion would halve Amazon's margin.
 Growth in years 1 and 2 is seeded from analyst consensus where available, then
 moves in a straight line to a year-5 rate that is the analyst's own view.
 
-Cash flows are discounted at a fixed 10% required return rather than each
-company's WACC. A WACC measures what capital costs the company; the discount
-rate here is the return an investor wants before committing money, and holding
-it constant makes valuations comparable across companies. Each company's WACC
-is still calculated for reference (CAPM cost of equity with a 4% risk-free rate
-and 5% equity risk premium, cost of debt from interest expense / total debt,
-market-value weights) and used as the hurdle in the ROIC comparison.
+Fair value and the buy decision are kept separate. Fair value discounts at the
+company's cost of capital (WACC): what the business is worth to the market. The
+cost of equity comes from CAPM with a 4% risk-free rate, a 5% equity risk premium
+and an adjusted beta (0.67 × raw + 0.33, as Bloomberg reports it, since betas
+drift toward 1 and raw betas like Exxon's 0.17 imply an implausible ~5% cost of
+equity); the cost of debt is interest expense over debt, and the weights are
+market values. Your own required return (10% by default) doesn't change the fair
+value. It is one of two buy tests: the expected return at today's price must
+reach it, and the price must sit below fair value by the margin of safety.
+
+An earlier version discounted everything at a flat 10%. Across 30 large US and
+UK companies that put the median fair value 52% below the share price and 56%
+below analysts' targets, because the market doesn't price large companies to
+return 10% a year. Discounting at the cost of capital, with the fade period
+taken from the moat evidence, moved the median to 8% below the price and 20%
+below targets (analysts' targets typically sit about 10% above the price).
 
 | Stage | Period | Treatment |
 |---|---|---|
 | 1 | Years 1–5 | Explicit projection at the chosen ROIC (seeded from the 10-year average) |
-| 2 | Fade period | Growth declines linearly to terminal growth; ROIC declines linearly to the discount rate (plus any lasting excess return) |
+| 2 | Fade period | Growth declines linearly to terminal growth; ROIC declines linearly to the cost of capital (plus any lasting excess return) |
 | 3 | Terminal | Value driver formula: NOPAT × (1 − g / RONIC) / (r − g), with RONIC = r |
 
-The length of Stage 2 reflects competitive advantage: roughly 5 years for a company
-with no moat, 10 for a narrow moat and 20 for a wide one, similar to the approach
-Morningstar describes. In the terminal stage new investment earns exactly the required
-return, so the terminal value reduces to NOPAT / r and terminal growth adds
+The length of Stage 2 reflects competitive advantage: 5 years for no moat, 10 for
+a narrow moat and 20 for a wide one, similar to the approach Morningstar
+describes. It is seeded from the evidence: wide if ROIC beat the cost of capital
+in nearly every one of the last 10 years by 10+ points on average, narrow if it
+did in most years, otherwise none. In the terminal stage new investment earns
+exactly the cost of capital, so the terminal value reduces to NOPAT / r and terminal growth adds
 almost no value: competition is assumed to have eroded excess returns by then.
 For a moat expected to last indefinitely, a "lasting excess return" keeps the
 return on new capital above r in the terminal value. It defaults to zero and
@@ -99,7 +111,7 @@ Starting assumptions come from the company's history with guards against
 distorted years: historical and year-5 growth seeds are capped at 15%, the tax
 rate is the median over the last five profitable years (one year is often
 distorted by one-off items; a decade can reach back to a different tax regime),
-and with no positive ROIC history the ROIC seed is the discount rate.
+and with no positive ROIC history the ROIC seed is the cost of capital.
 
 Fair value is the probability-weighted value of bear, base and bull cases
 (25/50/25 by default), each floored at zero since shareholders can't lose more
@@ -110,12 +122,6 @@ scaled by the latest year's diluted/basic ratio). The margin of safety comes fro
 an uncertainty rating (Low 20%, Medium 30%, High 40%, Very high 50%, modelled on
 Morningstar's uncertainty ratings), seeded from margin stability, leverage, beta
 and free cash flow history.
-
-Because the discount rate is a fixed hurdle rather than a market estimate, the
-headline "upside" mostly answers "does this beat 10%?". The expected return at
-today's price answers the same question directly: across 30 large US and UK
-companies in September 2026 the median was about 5.5%, which is why most of
-them screen as expensive against a 10% hurdle.
 
 Carmakers and machinery makers with a finance arm (Ford, GM, Caterpillar,
 Deere) get a warning: the finance arm's debt sits in net debt but the customer

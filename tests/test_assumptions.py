@@ -21,6 +21,7 @@ def _seed(ebit_margin: float = 0.20) -> dict:
         "fade_years": 10,
         "terminal_growth": 0.025,
         "discount_rate": 0.08,
+        "hurdle_rate": 0.10,
         "growth_swing": 0.03,
         "margin_swing": 0.02,
         "tail_probability": 0.25,

@@ -44,7 +44,7 @@ def roic_chart(brief_quality: dict) -> go.Figure:
     fig = go.Figure()
     fig.add_trace(go.Bar(x=roic.index, y=roic.values, name="ROIC"))
     fig.add_hline(y=wacc, line_dash="dash", line_color="red",
-                  annotation_text="reference WACC",
+                  annotation_text="cost of capital (WACC)",
                   annotation_position="top left")
     fig.update_layout(**_base_layout("C. ROIC vs reference cost of capital"),
                       yaxis_tickformat=".0%")

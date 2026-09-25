@@ -30,7 +30,8 @@ class Assumptions:
     fade_years: int = 10
     terminal_excess_return: float = 0.0  # RONIC above r kept forever; 0 = moat fully erodes
     terminal_growth: float = 0.025
-    discount_rate: float = 0.10
+    discount_rate: float = 0.08  # cost of capital: sets the fair value
+    hurdle_rate: float = 0.10    # your required return: a buy test only
     margin_of_safety: float = 0.25
     years: int = 5
     growth_swing: float = 0.03  # bear/bull scenarios: +/- revenue growth

@@ -13,14 +13,15 @@ from engine.wacc import cost_of_equity, wacc
 
 from .panels import _col, _fcf, reinvestment_history, roic_history
 
-DISCOUNT_RATE = 0.10  # required return: the hurdle every investment must clear
+HURDLE_RATE = 0.10  # your required return: a buy test, not a valuation input
 RISK_FREE = 0.04
 EQUITY_RISK_PREMIUM = 0.05
+DISCOUNT_RANGE = (0.04, 0.16)  # discount-rate slider range
 
-# Margin of safety by uncertainty rating, modelled on Morningstar's uncertainty ratings
 SEED_YEARS = 10
 MAX_SEED_GROWTH = 0.15
 GROWTH_FLOOR, GROWTH_CEILING = -0.20, 1.00  # growth slider range
+# Margin of safety by uncertainty rating, modelled on Morningstar's uncertainty ratings
 UNCERTAINTY_MOS = {"Low": 0.20, "Medium": 0.30, "High": 0.40, "Very high": 0.50}
 
 
@@ -76,12 +77,6 @@ def derive_starting_assumptions(provider, ticker: str) -> dict:
     # bear/bull margin swing: how much the margin has actually moved, at least 2pp
     margin_swing = min(max(float(margins.std()) if margins.size >= 3 else 0.0, 0.02), 0.10)
 
-    # no positive ROIC history -> assume new capital earns the discount rate,
-    # so growth neither creates nor destroys value
-    roic_hist = roic_history(provider, ticker).dropna().tail(SEED_YEARS)
-    roic_avg = float(roic_hist.mean()) if roic_hist.size else float("nan")
-    roic = min(max(roic_avg, 0.01), 1.0) if roic_avg > 0 else DISCOUNT_RATE
-
     # tax: median effective rate over the last 5 profitable years. One year is
     # often distorted by one-off charges (Intel's hit a 50% cap); a whole decade
     # can reach back to a different tax regime (Nvidia's 2016-22 rates were far
@@ -90,12 +85,23 @@ def derive_starting_assumptions(provider, ticker: str) -> dict:
     rates = (tax / pretax)[pretax > 0].dropna().tail(5)
     tax_rate = min(max(float(rates.median()), 0.0), 0.40) if rates.size else 0.21
 
+    # discount rate: the company's cost of capital, so fair value is what the
+    # business is worth to the market; your own required return is a buy test
+    ref = wacc_reference(provider, ticker, tax_rate)
+    discount_rate = min(max(ref["wacc"], DISCOUNT_RANGE[0], terminal_growth + 0.02), DISCOUNT_RANGE[1])
+
+    # no positive ROIC history -> assume new capital earns the cost of capital,
+    # so growth neither creates nor destroys value
+    roic_hist = roic_history(provider, ticker).dropna().tail(SEED_YEARS)
+    roic_avg = float(roic_hist.mean()) if roic_hist.size else float("nan")
+    roic = min(max(roic_avg, 0.01), 1.0) if roic_avg > 0 else discount_rate
+    moat = moat_rating(roic_hist, discount_rate)
+
     # fundamental growth = reinvestment rate x ROIC: the growth the company's own
     # reinvestment can fund (net capex only; excludes working capital and M&A)
     reinvest_rate = reinvestment_history(provider, ticker)["net_capex_pct_nopat"].dropna().tail(SEED_YEARS)
     reinvest_rate = float(reinvest_rate.mean()) if reinvest_rate.size else float("nan")
 
-    ref = wacc_reference(provider, ticker, tax_rate)
     unc = uncertainty_rating(provider, ticker)
 
     return {
@@ -107,10 +113,11 @@ def derive_starting_assumptions(provider, ticker: str) -> dict:
         "target_ebit_margin": target_margin,
         "tax_rate": tax_rate,
         "roic": roic,
-        "fade_years": 10,
+        "fade_years": moat["fade_years"],
         "terminal_growth": terminal_growth,
         "terminal_excess_return": 0.0,
-        "discount_rate": DISCOUNT_RATE,
+        "discount_rate": discount_rate,
+        "hurdle_rate": HURDLE_RATE,
         "growth_swing": 0.03,
         "margin_swing": margin_swing,
         "tail_probability": 0.25,
@@ -134,8 +141,8 @@ def derive_starting_assumptions(provider, ticker: str) -> dict:
             ),
             "terminal_excess_return": (
                 "0 = Morningstar's assumption that competition erodes excess returns by "
-                "the end of the fade. Above 0 keeps new capital earning more than your "
-                "required return forever: only for a moat you expect to last indefinitely"
+                "the end of the fade. Above 0 keeps new capital earning more than the "
+                "cost of capital forever: only for a moat you expect to last indefinitely"
             ),
             "ebit_margin": f"FY{revenue.index[-1]} operating margin",
             "target_ebit_margin": (
@@ -147,17 +154,23 @@ def derive_starting_assumptions(provider, ticker: str) -> dict:
             "roic": (
                 f"average ROIC FY{roic_hist.index[0]}-{roic_hist.index[-1]} (Panel C); "
                 "sets what growth costs (reinvestment = growth / ROIC) and "
-                "fades to the discount rate over the fade period"
-                if roic_avg > 0 else "no positive ROIC history: set to the discount rate, "
+                "fades to the cost of capital over the fade period"
+                if roic_avg > 0 else "no positive ROIC history: set to the cost of capital, "
                 "so growth neither creates nor destroys value"
             ),
             "tax_rate": (f"median effective tax rate over {rates.size} profitable years"
                          if rates.size else "no profitable years: US federal rate of 21%"),
-            "fade_years": "default: set from the moat evidence in Panel C",
+            "fade_years": moat["reason"],
             "terminal_growth": "default: long-run nominal GDP growth, typically 2-3%",
             "discount_rate": (
-                f"required return of {DISCOUNT_RATE:.0%}; company WACC for "
-                f"reference is {ref['wacc']:.1%}"
+                f"company WACC: CAPM cost of equity {ref['cost_of_equity']:.1%} "
+                f"(risk-free {RISK_FREE:.0%} + adjusted beta {ref['beta_adjusted']:.2f} x "
+                f"{EQUITY_RISK_PREMIUM:.0%} equity risk premium) and after-tax cost of debt, "
+                "weighted by market values"
+            ),
+            "hurdle_rate": (
+                "the return you require before buying. It doesn't change the fair value; "
+                "the buy decision compares it with the expected return at today's price"
             ),
             "uncertainty": "; ".join(unc["reasons"]),
             "growth_swing": "bear/bull revenue growth is base growth minus/plus this",
@@ -171,7 +184,7 @@ def derive_starting_assumptions(provider, ticker: str) -> dict:
 
 
 def wacc_reference(provider, ticker: str, tax_rate: float) -> dict:
-    """Company WACC from CAPM and market-value weights, shown beside the discount rate.
+    """Company WACC from CAPM (adjusted beta) and market-value weights: the seed for the discount rate.
 
     Cost of debt is interest expense / total debt, bounded to 2-15% so a stale
     or tiny debt balance can't produce an absurd rate; with no usable data it
@@ -182,16 +195,20 @@ def wacc_reference(provider, ticker: str, tax_rate: float) -> dict:
     bal = provider.balance_sheet(ticker)
 
     beta = m.get("beta") or 1.0
+    # adjusted beta (as Bloomberg shows): betas drift toward the market's 1.0, and
+    # raw betas like Exxon's 0.17 would imply an unrealistic ~5% cost of equity
+    beta_adj = 0.67 * beta + 0.33
     debt = _latest(bal, "total_debt")
     interest = _latest(inc, "interest_expense")
     cost_debt = min(max(interest / debt, 0.02), 0.15) if debt > 0 and interest > 0 else RISK_FREE
 
-    ke = cost_of_equity(RISK_FREE, beta, EQUITY_RISK_PREMIUM)
+    ke = cost_of_equity(RISK_FREE, beta_adj, EQUITY_RISK_PREMIUM)
     return {
         "wacc": wacc(m["market_cap"], debt, ke, cost_debt, tax_rate),
         "cost_of_equity": ke,
         "cost_of_debt": cost_debt,
         "beta": beta,
+        "beta_adjusted": beta_adj,
         "risk_free": RISK_FREE,
         "equity_risk_premium": EQUITY_RISK_PREMIUM,
     }
@@ -241,3 +258,22 @@ def uncertainty_rating(provider, ticker: str) -> dict:
 
     rating = "Low" if score <= 1 else "Medium" if score <= 3 else "High" if score <= 5 else "Very high"
     return {"rating": rating, "score": score, "reasons": reasons}
+
+
+def moat_rating(roic_hist: pd.Series, cost_of_capital: float) -> dict:
+    """Fade period from how consistently and by how much ROIC has beaten the cost
+    of capital: Morningstar's wide / narrow / no moat, read from the evidence.
+    """
+    if roic_hist.size < 3:
+        return {"fade_years": 10, "reason": "too little ROIC history to judge the moat: narrow by default"}
+    n_above = int((roic_hist > cost_of_capital).sum())
+    spread = float(roic_hist.mean()) - cost_of_capital
+    share = n_above / roic_hist.size
+    fade, label = ((20, "wide") if share >= 0.9 and spread >= 0.10 else
+                   (10, "narrow") if share >= 0.6 else (5, "no"))
+    return {
+        "fade_years": fade,
+        "reason": (f"{label} moat: ROIC beat the {cost_of_capital:.1%} cost of capital in {n_above} of "
+                   f"{roic_hist.size} years, by {spread * 100:+.0f} points on average. Wide (20 years) "
+                   "needs nearly every year and 10+ points; narrow (10) most years; otherwise 5"),
+    }

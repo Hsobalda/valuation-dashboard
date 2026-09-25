@@ -239,7 +239,7 @@ else:
         minority_interest=metrics["minority_interest"], shares_diluted=metrics["shares_diluted"],
         years_since_fy_end=metrics["years_since_fy_end"],
     )
-    r = assumptions.discount_rate
+    hurdle = assumptions.hurdle_rate
     m1, m2, m3, m4, m5 = st.columns(5)
     m1.metric("Fair value / share", fmt_money(fair_value, ccy),
               help="Probability-weighted across the bear, base and bull cases below")
@@ -247,10 +247,10 @@ else:
     m3.metric(
         "Expected return at today's price",
         fmt_pct(expected) if expected is not None else ("under 3%" if price > res.equity_value_per_share else "over 30%"),
-        delta=f"{(expected - r) * 100:+.1f} pts vs your {r:.0%}" if expected is not None else None,
+        delta=f"{(expected - hurdle) * 100:+.1f} pts vs your {hurdle:.0%}" if expected is not None else None,
         help="The annual return the stock offers at today's price if the base-case assumptions "
-             "hold: the discount rate at which the DCF equals the price. Compare it with your "
-             "required return, an index fund or bonds.",
+             "hold: the discount rate at which the DCF equals the price. Compared with your "
+             "required return in the buy decision below.",
     )
     m4.metric("Buy zone (≤)", fmt_money(buy_zone, ccy))
     m5.metric("Terminal value % of EV", fmt_pct(res.terminal_share_of_ev))
@@ -263,10 +263,10 @@ else:
     if implied is None and assumptions.roic <= assumptions.discount_rate:
         st.markdown(
             f"**Reverse DCF:** no growth rate justifies {fmt_money(price, ccy)}. With ROIC "
-            f"({assumptions.roic:.1%}) at or below your discount rate "
+            f"({assumptions.roic:.1%}) at or below the cost of capital "
             f"({assumptions.discount_rate:.1%}), each unit of growth costs more than it "
             "earns, so faster growth lowers value. The market is either expecting higher "
-            "returns on capital or accepting a lower return than you require."
+            "returns on capital or accepting a lower return on its money."
         )
     elif implied is None:
         st.markdown(
@@ -452,20 +452,31 @@ if ranges:
     st.markdown("#### Football field")
     st.plotly_chart(charts.football_field(ranges, price, buy_zone, ccy), width="stretch")
 
-# --- 5. margin of safety ----------------------------------------------------
+# --- 5. buy decision --------------------------------------------------------
 
 if run is not None:
-    st.markdown("### 5. Margin of safety")
-    mos = assumptions.margin_of_safety
-    st.write(
-        f"Required margin of safety: **{mos:.0%}** → you'd want to pay no more than "
-        f"**{fmt_money(buy_zone, ccy)}** for a value estimate of "
-        f"{fmt_money(fair_value, ccy)}."
+    st.markdown("### 5. Buy decision")
+    mos, hurdle = assumptions.margin_of_safety, assumptions.hurdle_rate
+    cheap_enough = price <= buy_zone
+    returns_enough = expected is not None and expected >= hurdle or (expected is None and price < buy_zone)
+    b1, b2 = st.columns(2)
+    with b1:
+        (st.success if cheap_enough else st.info)(
+            f"**Margin of safety:** price {fmt_money(price, ccy)} vs buy-below {fmt_money(buy_zone, ccy)} "
+            f"(fair value {fmt_money(fair_value, ccy)} less {mos:.0%}). "
+            + ("Passes." if cheap_enough else "Not yet."),
+        )
+    with b2:
+        (st.success if returns_enough else st.info)(
+            f"**Required return:** the stock offers "
+            f"{fmt_pct(expected) if expected is not None else 'an unmeasurable return'} a year at today's "
+            f"price against the {hurdle:.0%} you require. " + ("Passes." if returns_enough else "Not yet."),
+        )
+    st.caption(
+        "Fair value discounts at the company's cost of capital: what the business is worth to the "
+        "market. Your required return and margin of safety decide whether to buy it. A stock can be "
+        "fairly priced and still not clear your bar."
     )
-    if price <= buy_zone:
-        st.success(f"Current price {fmt_money(price, ccy)} is at or below the buy zone.")
-    else:
-        st.info(f"Current price {fmt_money(price, ccy)} is above the buy zone of {fmt_money(buy_zone, ccy)}.")
 
 # --- 6. journal --------------------------------------------------------------
 
