@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from dataclasses import replace
-
 from .valuation import Assumptions, value_per_share
 
 
@@ -17,13 +15,13 @@ def implied_revenue_growth(
     low: float = -0.10,
     high: float = 0.40,
 ) -> float | None:
-    """Stage-1 revenue growth at which DCF value equals `price`, holding every
-    other assumption fixed. Returns None if no growth in [low, high] reaches the
+    """Constant Stage-1 revenue growth at which DCF value equals `price`,
+    holding every other assumption fixed. Returns None if no growth in [low, high] reaches the
     price. When ROIC is below the discount rate, extra growth lowers value, so
     the price may be unreachable through growth at all.
     """
     def gap(g: float) -> float:
-        a = replace(assumptions, revenue_growth=g)
+        a = assumptions.with_flat_growth(g)
         return value_per_share(base_revenue, a, net_debt, minority_interest, shares_diluted) - price
 
     gap_low, gap_high = gap(low), gap(high)

@@ -40,10 +40,25 @@ def render_assumption_panel(seed: dict, ticker: str) -> Assumptions:
 
     col1, col2, col3 = st.columns(3)
     with col1:
-        revenue_growth = _pct_slider(
-            "Revenue growth / yr", -10.0, 30.0, seed["revenue_growth"], 0.25,
-            key=f"{ticker}:revenue_growth", help=prov.get("revenue_growth"),
-        )
+        g1 = _pct_slider("Revenue growth, year 1", -20.0, 100.0, seed["growth_y1"], 0.25,
+                         key=f"{ticker}:growth_y1", help=prov.get("growth_y1"))
+        g2 = _pct_slider("Revenue growth, year 2", -20.0, 100.0, seed["growth_y2"], 0.25,
+                         key=f"{ticker}:growth_y2", help=prov.get("growth_y2"))
+        g5 = _pct_slider("Revenue growth, year 5 (your view)", -20.0, 100.0, seed["growth_y5"], 0.25,
+                         key=f"{ticker}:growth_y5", help=prov.get("growth_y5"))
+        ev = seed.get("growth_evidence")
+        if ev:
+            parts = [f"historical {ev['historical']:.1%} a year"]
+            if ev["consensus"]:
+                c1, c2, n = ev["consensus"]
+                parts.append(f"consensus {c1:.1%} then {c2:.1%} ({n} analysts)")
+            if ev["fundamental"] == ev["fundamental"]:
+                parts.append(
+                    f"fundamental {ev['fundamental']:.1%} (reinvests {ev['reinvestment_rate']:.0%} "
+                    f"of NOPAT in net capex × {seed['roic']:.0%} ROIC)"
+                )
+            st.caption("Growth cross-check: " + " · ".join(parts))
+    with col2:
         ebit_margin = _pct_slider(
             "EBIT margin", -30.0, 75.0, seed["ebit_margin"], 0.25,
             key=f"{ticker}:ebit_margin", help=prov.get("ebit_margin"),
@@ -52,7 +67,6 @@ def render_assumption_panel(seed: dict, ticker: str) -> Assumptions:
             "Target EBIT margin (year 5)", -30.0, 75.0, seed["target_ebit_margin"], 0.25,
             key=f"{ticker}:target_ebit_margin", help=prov.get("target_ebit_margin"),
         )
-    with col2:
         tax_rate = _pct_slider(
             "Tax rate", 0.0, 40.0, seed["tax_rate"], 0.25,
             key=f"{ticker}:tax_rate", help=prov.get("tax_rate"),
@@ -61,13 +75,18 @@ def render_assumption_panel(seed: dict, ticker: str) -> Assumptions:
             "ROIC (return on new capital)", 1.0, 100.0, seed["roic"], 0.5,
             key=f"{ticker}:roic", help=prov.get("roic"),
         )
+    with col3:
         fade_years = st.select_slider(
             "Moat → fade period (years)", options=[5, 10, 15, 20],
             value=int(seed["fade_years"]), key=f"{ticker}:fade_years",
             help=prov.get("fade_years") + " · 5 = none, 10 = narrow, 20 = wide. Over this "
-                 "period growth fades to terminal growth and ROIC fades to the discount rate.",
+                 "period growth fades to terminal growth and ROIC fades to the discount rate "
+                 "plus any lasting excess return.",
         )
-    with col3:
+        excess = _pct_slider(
+            "Lasting excess return on new capital", 0.0, 30.0, seed["terminal_excess_return"], 0.5,
+            key=f"{ticker}:terminal_excess_return", help=prov.get("terminal_excess_return"),
+        )
         terminal_growth = _pct_slider(
             "Terminal growth / yr", 0.0, 5.0, seed["terminal_growth"], 0.1,
             key=f"{ticker}:terminal_growth", help=prov.get("terminal_growth"),
@@ -111,7 +130,10 @@ def render_assumption_panel(seed: dict, ticker: str) -> Assumptions:
         )
 
     return Assumptions(
-        revenue_growth=revenue_growth,
+        growth_y1=g1,
+        growth_y2=g2,
+        growth_y5=g5,
+        terminal_excess_return=excess,
         ebit_margin=ebit_margin,
         target_ebit_margin=target_margin,
         roic=roic,

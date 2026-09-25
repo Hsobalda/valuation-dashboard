@@ -14,9 +14,11 @@ the user can see where every input came from before changing it.
 - Research brief: business overview, financial history, quality indicators, capital
   allocation (free cash flow vs dividends and buybacks, share count trend), risk,
   and the current P/E, EV/EBITDA, EV/Revenue and P/B.
-- Assumption panel: growth, current and target margin, return on capital, discount rate,
-  terminal growth and fade period, each labelled with its source (e.g. "FY2024
-  operating margin").
+- Assumption panel: a revenue growth path (years 1-2 from analyst consensus, year 5
+  your view), current and target margin, return on capital, discount rate, terminal
+  growth, fade period and any lasting excess return, each labelled with its source
+  (e.g. "consensus of 40 analysts"). A cross-check sets historical, consensus and
+  fundamental growth (reinvestment rate × ROIC) side by side.
 - Stage 1 projection table (revenue, margin, NOPAT, reinvestment, free cash flow)
   beside the company's actual capex, D&A and net capex history.
 - Three-stage DCF with a discount rate × terminal growth sensitivity table, and a warning
@@ -43,8 +45,10 @@ net capex and working capital, so
     FCFF = NOPAT × (1 − g / ROIC)
 
 The same rule runs through every stage, so the model can't assume growth for
-free. NOPAT comes from revenue growth and an EBIT margin that moves from its
-latest level to a target (seeded with the historical average) over five years.
+free. NOPAT comes from a revenue growth path and an EBIT margin that moves from
+its latest level to a target (seeded with the historical median) over five years.
+Growth in years 1 and 2 is seeded from analyst consensus where available, then
+moves in a straight line to a year-5 rate that is the analyst's own view.
 
 Cash flows are discounted at a fixed 10% required return rather than each
 company's WACC. A WACC measures what capital costs the company; the discount
@@ -65,10 +69,14 @@ with no moat, 10 for a narrow moat and 20 for a wide one, following the approach
 Morningstar uses. In the terminal stage new investment earns exactly the required
 return, so the terminal value reduces to NOPAT / r and terminal growth adds
 almost no value: competition is assumed to have eroded excess returns by then.
+For a moat expected to last indefinitely, a "lasting excess return" keeps the
+return on new capital above r in the terminal value; it defaults to zero, and
+setting it is an explicit bet on durability, which is what a high multiple for
+a company like Apple implies.
 A company whose ROIC is below the discount rate destroys value by growing.
 
 Starting assumptions come from the company's history with guards against
-distorted years: seeded growth is capped at 15%, the target margin is the median
+distorted years: historical and year-5 growth seeds are capped at 15%, the target margin is the median
 rather than the mean, and with no positive ROIC history the seed is the discount
 rate. Fair value is the probability-weighted value of bear, base and bull cases
 (25/50/25 by default), each floored at zero since shareholders can't lose more

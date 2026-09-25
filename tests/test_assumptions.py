@@ -10,7 +10,10 @@ from engine.valuation import Assumptions, run_valuation
 
 def _seed(ebit_margin: float = 0.20) -> dict:
     return {
-        "revenue_growth": 0.05,
+        "growth_y1": 0.05,
+        "growth_y2": 0.05,
+        "growth_y5": 0.05,
+        "terminal_excess_return": 0.0,
         "ebit_margin": ebit_margin,
         "target_ebit_margin": 0.25,
         "tax_rate": 0.21,

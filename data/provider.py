@@ -25,6 +25,7 @@ class DataProvider(Protocol):
     def market_data(self, ticker: str) -> dict: ...
     def company_info(self, ticker: str) -> dict: ...
     def fundamental_metrics(self, ticker: str) -> dict: ...
+    def consensus(self, ticker: str) -> dict: ...
 
 
 # --- shared derivation ------------------------------------------------------
@@ -115,6 +116,9 @@ class SampleProvider:
     def cash_flow(self, ticker: str, period: str = "annual") -> pd.DataFrame:
         self._check(ticker)
         return self._frames[ticker]["cashflow"]
+
+    def consensus(self, ticker: str) -> dict:
+        return {}
 
     def fundamental_metrics(self, ticker: str) -> dict:
         self._check(ticker)
@@ -218,6 +222,17 @@ class YFinanceProvider:
             "price": price,
             "market_cap": float(info.get("marketCap") or 0.0),
             "shares_outstanding": float(info.get("sharesOutstanding") or 0.0),
+        }
+
+    def consensus(self, ticker: str) -> dict:
+        """Analyst consensus revenue for the current and next fiscal year."""
+        est = self._ticker(ticker).revenue_estimate
+        if est is None or est.empty or not {"0y", "+1y"} <= set(est.index):
+            return {}
+        return {
+            "revenue_y1": float(est.loc["0y", "avg"]),
+            "revenue_y2": float(est.loc["+1y", "avg"]),
+            "analysts": int(est.loc["0y", "numberOfAnalysts"]),
         }
 
     def peer_suggestions(self, ticker: str, industry_key: str, sector_key: str,

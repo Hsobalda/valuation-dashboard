@@ -6,6 +6,8 @@ assumption panel. No valuation math lives here.
 
 from __future__ import annotations
 
+import math
+
 import streamlit as st
 import pandas as pd
 
@@ -201,10 +203,12 @@ else:
             "returns on capital or the discount rate rather than growth."
         )
     else:
+        path = assumptions.growth_path()
+        path_avg = math.prod(1 + g for g in path) ** (1 / len(path)) - 1
         st.markdown(
             f"**Reverse DCF:** at {fmt_money(price, ccy)} the market is pricing in about "
             f"**{implied:.1%}** revenue growth a year for the next {assumptions.years} years "
-            f"(you assume {assumptions.revenue_growth:.1%}), holding your other assumptions fixed."
+            f"(your path averages {path_avg:.1%}), holding your other assumptions fixed."
         )
 
     if res.terminal_share_of_ev > 0.8:
@@ -216,7 +220,8 @@ else:
     st.markdown("#### Scenarios")
     st.dataframe(pd.DataFrame({
         "Probability": [f"{s.probability:.0%}" for s in scen.scenarios],
-        "Revenue growth": [f"{s.assumptions.revenue_growth:.1%}" for s in scen.scenarios],
+        "Growth, year 1 → 5": [f"{s.assumptions.growth_y1:.1%} → {s.assumptions.growth_y5:.1%}"
+                               for s in scen.scenarios],
         "Target EBIT margin": [f"{s.assumptions.target_ebit_margin:.1%}" for s in scen.scenarios],
         "Value / share": [fmt_money(s.value_per_share, ccy) for s in scen.scenarios],
         "vs price": [fmt_pct(s.value_per_share / price - 1) if price else "—" for s in scen.scenarios],
@@ -225,11 +230,12 @@ else:
     st.plotly_chart(charts.sensitivity_heatmap(run.sensitivity), width="stretch")
 
     st.markdown("#### Stage 1 projection")
-    st.dataframe(projection_table(run.projection, assumptions.revenue_growth, ccy), width="stretch")
+    st.dataframe(projection_table(run.projection, ccy), width="stretch")
     st.caption(
-        f"Reinvestment = NOPAT × growth ÷ ROIC ({assumptions.revenue_growth:.1%} ÷ "
-        f"{assumptions.roic:.1%}): the net capex and working capital needed to grow at "
-        f"{assumptions.revenue_growth:.1%} if new capital earns {assumptions.roic:.1%}."
+        f"Reinvestment = NOPAT × growth ÷ ROIC: the net capex and working capital needed "
+        f"to grow if new capital earns {assumptions.roic:.1%}. Year 1: "
+        f"{assumptions.growth_y1:.1%} ÷ {assumptions.roic:.1%} = "
+        f"{assumptions.growth_y1 / assumptions.roic:.0%} of NOPAT reinvested."
     )
     hist = reinvestment_history(provider, ticker)
     if not hist.empty:

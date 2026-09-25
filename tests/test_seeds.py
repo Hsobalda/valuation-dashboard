@@ -29,8 +29,8 @@ class _ReboundFromTrough(_Rebound):
 
 def test_seed_growth_capped_and_flagged():
     s = derive_starting_assumptions(_ReboundFromTrough(), "AAPL")
-    assert s["revenue_growth"] == MAX_SEED_GROWTH
-    assert "capped" in s["provenance"]["revenue_growth"]
+    assert s["growth_y1"] == s["growth_y2"] == MAX_SEED_GROWTH
+    assert "capped" in s["provenance"]["growth_y1"]
 
 
 def test_target_margin_is_median_so_one_bad_year_does_not_set_normal():

@@ -3,7 +3,7 @@ import pytest
 from engine.scenarios import run_scenarios
 from engine.valuation import Assumptions, value_per_share
 
-A = Assumptions(revenue_growth=0.06, ebit_margin=0.20, target_ebit_margin=0.22, roic=0.25,
+A = Assumptions(growth_y1=0.08, growth_y2=0.07, growth_y5=0.06, ebit_margin=0.20, target_ebit_margin=0.22, roic=0.25,
                 growth_swing=0.03, margin_swing=0.02, tail_probability=0.25)
 
 
@@ -15,8 +15,9 @@ def test_base_case_matches_headline_value():
 
 def test_bear_and_bull_move_growth_and_target_margin():
     bear, _, bull = run_scenarios(1000.0, A).scenarios
-    assert (bear.assumptions.revenue_growth, bear.assumptions.target_ebit_margin) == pytest.approx((0.03, 0.20))
-    assert (bull.assumptions.revenue_growth, bull.assumptions.target_ebit_margin) == pytest.approx((0.09, 0.24))
+    assert bear.assumptions.growth_path() == pytest.approx([g - 0.03 for g in A.growth_path()])
+    assert bull.assumptions.growth_path() == pytest.approx([g + 0.03 for g in A.growth_path()])
+    assert (bear.assumptions.target_ebit_margin, bull.assumptions.target_ebit_margin) == pytest.approx((0.20, 0.24))
     assert bear.value_per_share < bull.value_per_share
 
 
@@ -29,3 +30,8 @@ def test_weighted_value_is_probability_weighted():
 def test_scenario_values_floored_at_zero():
     run = run_scenarios(1000.0, A, net_debt=1e9)
     assert all(s.value_per_share == 0.0 for s in run.scenarios)
+
+
+def test_growth_path_uses_y1_y2_then_straight_line_to_y5():
+    a = Assumptions(growth_y1=0.15, growth_y2=0.12, growth_y5=0.06)
+    assert a.growth_path() == pytest.approx([0.15, 0.12, 0.10, 0.08, 0.06])

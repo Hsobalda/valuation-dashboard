@@ -6,7 +6,7 @@ Pure: takes numbers in, returns numbers + DataFrames out. The UI populates
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 import pandas as pd
 
@@ -17,12 +17,17 @@ from .sensitivity import sensitivity_grid
 
 @dataclass
 class Assumptions:
-    revenue_growth: float = 0.05
+    # revenue growth path: years 1 and 2 (usually analyst consensus), then a
+    # straight line to the year-5 rate (your view), then the fade in Stage 2
+    growth_y1: float = 0.05
+    growth_y2: float = 0.05
+    growth_y5: float = 0.05
     ebit_margin: float = 0.20
     target_ebit_margin: float | None = None  # None: margin stays at ebit_margin
     tax_rate: float = 0.21
     roic: float = 0.15  # return on capital: sets reinvestment, fades over fade_years
     fade_years: int = 10
+    terminal_excess_return: float = 0.0  # RONIC above r kept forever; 0 = moat fully erodes
     terminal_growth: float = 0.025
     discount_rate: float = 0.10
     margin_of_safety: float = 0.25
@@ -30,6 +35,16 @@ class Assumptions:
     growth_swing: float = 0.03  # bear/bull scenarios: +/- revenue growth
     margin_swing: float = 0.02  # bear/bull scenarios: +/- target EBIT margin
     tail_probability: float = 0.25  # probability of each of bear and bull
+
+
+    def growth_path(self) -> list[float]:
+        path = [self.growth_y1, self.growth_y2]
+        for t in range(3, self.years + 1):
+            path.append(self.growth_y2 + (self.growth_y5 - self.growth_y2) * (t - 2) / (self.years - 2))
+        return path[: self.years]
+
+    def with_flat_growth(self, g: float) -> "Assumptions":
+        return replace(self, growth_y1=g, growth_y2=g, growth_y5=g)
 
 
 @dataclass
@@ -42,7 +57,7 @@ class ValuationRun:
 def _projection(base_revenue: float, a: Assumptions) -> Projection:
     return project(
         base_revenue=base_revenue,
-        revenue_growth=a.revenue_growth,
+        revenue_growth=a.growth_path(),
         ebit_margin=a.ebit_margin,
         tax_rate=a.tax_rate,
         roic=a.roic,
@@ -55,7 +70,8 @@ def _dcf_kwargs(proj: Projection, a: Assumptions, net_debt: float,
                 minority_interest: float, shares_diluted: float) -> dict:
     return dict(
         fade_years=a.fade_years,
-        stage1_growth=a.revenue_growth,
+        stage1_growth=a.growth_path()[-1],
+        terminal_excess_return=a.terminal_excess_return,
         nopat_last=proj.nopat[-1],
         roic_start=a.roic,
         net_debt=net_debt,

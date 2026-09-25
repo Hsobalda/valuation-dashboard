@@ -15,7 +15,8 @@ Growth has to be paid for: to grow NOPAT at g with a return of ROIC on new
 capital, a company reinvests g/ROIC of NOPAT, so FCF = NOPAT * (1 - g/ROIC).
 With the terminal RONIC equal to the discount rate (the default: competition
 has eroded excess returns), terminal value collapses to NOPAT / r and terminal
-growth adds no value.
+growth adds no value. A positive terminal excess return keeps RONIC above r
+forever, the bet implicit in paying a high multiple for a wide-moat company.
 
 Without `nopat_last`, Stage 2-3 grow Stage-1 FCF directly, which is the same
 model with an infinite return on new capital (growth needs no reinvestment).
@@ -58,13 +59,15 @@ def dcf_3stage(
     stage1_growth: float | None = None,
     nopat_last: float | None = None,
     roic_start: float = math.inf,
-    terminal_roic: float | None = None,
+    terminal_excess_return: float = 0.0,
 ) -> ValuationResult:
     """Discount FCFF through the three stages and bridge to per-share equity.
 
     `nopat_last` is Stage-1 final-year NOPAT; with it, Stage 2 fades ROIC from
-    `roic_start` to `terminal_roic` (default: the discount rate) and deducts the
-    reinvestment growth requires.
+    `roic_start` to the terminal return on new capital and deducts the
+    reinvestment growth requires. The terminal return is the discount rate plus
+    `terminal_excess_return` (default 0: competition erodes excess returns;
+    positive for a moat expected to last indefinitely).
     """
     if discount_rate <= 0:
         raise ValueError("Discount rate must be positive")
@@ -91,8 +94,10 @@ def dcf_3stage(
 
     if nopat_last is None:
         nopat_last, roic_start, terminal_roic = last_fcf, math.inf, math.inf
-    elif terminal_roic is None:
-        terminal_roic = discount_rate
+    else:
+        terminal_roic = discount_rate + terminal_excess_return
+        if terminal_roic <= 0:
+            raise ValueError("Terminal return on new capital must be positive")
 
     def roic_at(i: int) -> float:
         if math.isinf(roic_start):

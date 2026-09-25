@@ -121,7 +121,15 @@ def test_terminal_growth_adds_no_value_when_ronic_equals_discount_rate():
 
 def test_growth_destroys_value_when_roic_below_discount_rate():
     kwargs = dict(discount_rate=0.10, fade_years=10, terminal_growth=0.02,
-                  nopat_last=100.0, roic_start=0.06, terminal_roic=0.06)
+                  nopat_last=100.0, roic_start=0.06, terminal_excess_return=-0.04)
     slow = dcf_3stage([100.0], stage1_growth=0.02, **kwargs).enterprise_value
     fast = dcf_3stage([100.0], stage1_growth=0.10, **kwargs).enterprise_value
     assert fast < slow
+
+
+def test_terminal_excess_return_adds_value_through_growth():
+    kwargs = dict(discount_rate=0.10, fade_years=0, terminal_growth=0.03, nopat_last=100.0, roic_start=0.10)
+    no_moat = dcf_3stage([100.0], **kwargs).pv_terminal
+    lasting_moat = dcf_3stage([100.0], terminal_excess_return=0.10, **kwargs).pv_terminal
+    # RONIC 20%: TV = 103 * (1 - 0.03/0.20) / 0.07 vs 103 * (1 - 0.03/0.10) / 0.07
+    assert lasting_moat / no_moat == pytest.approx((1 - 0.03 / 0.20) / (1 - 0.03 / 0.10))

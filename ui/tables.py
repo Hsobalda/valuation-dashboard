@@ -20,12 +20,12 @@ def _pct(v: float) -> str:
     return "—" if v != v else f"{v:.1%}"
 
 
-def projection_table(proj: Projection, growth: float, currency: str) -> pd.DataFrame:
+def projection_table(proj: Projection, currency: str) -> pd.DataFrame:
     scale, unit = _scale(proj.revenue)
     cols = [f"Year {t}" for t in range(1, len(proj.revenue) + 1)]
     rows = {
         f"Revenue ({currency} {unit})": [_money(v, scale) for v in proj.revenue],
-        "Revenue growth": [_pct(growth)] * len(cols),
+        "Revenue growth": [_pct(g) for g in proj.growth],
         "EBIT margin": [_pct(v) for v in proj.ebit_margin],
         f"NOPAT ({currency} {unit})": [_money(v, scale) for v in proj.nopat],
         f"Reinvestment ({currency} {unit})": [_money(v, scale) for v in proj.reinvestment],

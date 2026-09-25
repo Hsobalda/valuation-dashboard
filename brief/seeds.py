@@ -11,7 +11,7 @@ import pandas as pd
 
 from engine.wacc import cost_of_equity, wacc
 
-from .panels import _col, _fcf, roic_history
+from .panels import _col, _fcf, reinvestment_history, roic_history
 
 DISCOUNT_RATE = 0.10  # required return: the hurdle every investment must clear
 RISK_FREE = 0.04
@@ -19,6 +19,7 @@ EQUITY_RISK_PREMIUM = 0.05
 
 # Margin of safety by uncertainty, on Morningstar's scale for a 5-star rating
 MAX_SEED_GROWTH = 0.15
+GROWTH_FLOOR, GROWTH_CEILING = -0.20, 1.00  # growth slider range
 UNCERTAINTY_MOS = {"Low": 0.20, "Medium": 0.30, "High": 0.40, "Very high": 0.50}
 
 
@@ -41,6 +42,24 @@ def derive_starting_assumptions(provider, ticker: str) -> dict:
     if revenue.size >= 2 and revenue.iloc[0] > 0:
         cagr = (revenue.iloc[-1] / revenue.iloc[0]) ** (1 / (revenue.size - 1)) - 1.0
     growth = min(max(cagr, -0.05), MAX_SEED_GROWTH)
+    hist_note = (
+        f"revenue CAGR {revenue.index[0]}-{revenue.index[-1]} ({cagr:.1%})"
+        + (f", capped at {growth:.0%}" if growth != cagr else "")
+    ) if revenue.size >= 2 else "no revenue history"
+
+    # years 1-2: analyst consensus where it exists (a forecast, so not capped);
+    # year 5: halfway from year 2 to terminal growth, capped like historical
+    # growth, since >15% five years out should be your explicit call
+    cons = provider.consensus(ticker)
+    g1 = cons["revenue_y1"] / latest_rev - 1 if cons and latest_rev else float("nan")
+    g2 = cons["revenue_y2"] / cons["revenue_y1"] - 1 if cons and cons["revenue_y1"] else float("nan")
+    has_consensus = -0.5 < g1 < 2.0 and -0.5 < g2 < 2.0  # else a period/currency mismatch
+    if not has_consensus:
+        g1 = g2 = growth
+    terminal_growth = 0.025
+    g5 = min((g2 + terminal_growth) / 2, MAX_SEED_GROWTH)
+    g1, g2, g5 = (min(max(g, GROWTH_FLOOR), GROWTH_CEILING) for g in (g1, g2, g5))
+    source = f"consensus of {cons['analysts']} analysts (Yahoo)" if has_consensus else hist_note
 
     ebit_margin = _latest(inc, "operating_income") / latest_rev if latest_rev else 0.0
     # normalised margin: the median over the history, so one abnormal year
@@ -63,17 +82,25 @@ def derive_starting_assumptions(provider, ticker: str) -> dict:
     tax = _latest(inc, "income_tax")
     tax_rate = min(max(tax / pretax, 0.0), 0.5) if pretax > 0 else 0.21
 
+    # fundamental growth = reinvestment rate x ROIC: the growth the company's own
+    # reinvestment can fund (net capex only; excludes working capital and M&A)
+    reinvest_rate = reinvestment_history(provider, ticker)["net_capex_pct_nopat"].dropna()
+    reinvest_rate = float(reinvest_rate.mean()) if reinvest_rate.size else float("nan")
+
     ref = wacc_reference(provider, ticker, tax_rate)
     unc = uncertainty_rating(provider, ticker)
 
     return {
-        "revenue_growth": growth,
+        "growth_y1": g1,
+        "growth_y2": g2,
+        "growth_y5": g5,
         "ebit_margin": ebit_margin,
         "target_ebit_margin": target_margin,
         "tax_rate": tax_rate,
         "roic": roic,
         "fade_years": 10,
-        "terminal_growth": 0.025,
+        "terminal_growth": terminal_growth,
+        "terminal_excess_return": 0.0,
         "discount_rate": DISCOUNT_RATE,
         "growth_swing": 0.03,
         "margin_swing": margin_swing,
@@ -82,11 +109,25 @@ def derive_starting_assumptions(provider, ticker: str) -> dict:
         "uncertainty_mos": UNCERTAINTY_MOS,
         "margin_of_safety": UNCERTAINTY_MOS[unc["rating"]],
         "wacc_reference": ref,
+        "growth_evidence": {
+            "historical": cagr if revenue.size >= 2 else float("nan"),
+            "consensus": (g1, g2, cons["analysts"]) if has_consensus else None,
+            "reinvestment_rate": reinvest_rate,
+            "fundamental": reinvest_rate * roic,
+        },
         "provenance": {
-            "revenue_growth": (
-                f"revenue CAGR {revenue.index[0]}-{revenue.index[-1]} ({cagr:.1%})"
-                + (f", capped at {growth:.0%}" if growth != cagr else "")
-            ) if revenue.size >= 2 else "no revenue history",
+            "growth_y1": source,
+            "growth_y2": source,
+            "growth_y5": (
+                "your view: seeded halfway between year-2 growth and terminal growth, "
+                f"at most {MAX_SEED_GROWTH:.0%}. "
+                "Years 3-4 move in a straight line from year 2 to this"
+            ),
+            "terminal_excess_return": (
+                "0 = Morningstar's assumption that competition erodes excess returns by "
+                "the end of the fade. Above 0 keeps new capital earning more than your "
+                "required return forever: only for a moat you expect to last indefinitely"
+            ),
             "ebit_margin": f"FY{revenue.index[-1]} operating margin",
             "target_ebit_margin": (
                 f"median operating margin FY{margins.index[0]}-{margins.index[-1]}; "

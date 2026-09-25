@@ -44,8 +44,13 @@ def load_company(ticker: str) -> dict:
             cashflow = p.cash_flow(ticker)
             if income.empty and balance.empty and cashflow.empty:
                 raise RuntimeError("no statements")
+            try:
+                consensus = p.consensus(ticker)
+            except Exception:
+                consensus = {}
             return {"source": "live", "info": info, "market": market,
-                    "income": income, "balance": balance, "cashflow": cashflow}
+                    "income": income, "balance": balance, "cashflow": cashflow,
+                    "consensus": consensus}
         except Exception:
             pass  # fall through to sample
     p = SampleProvider()
@@ -53,7 +58,8 @@ def load_company(ticker: str) -> dict:
             "market": p.market_data(ticker),
             "income": p.income_statement(ticker),
             "balance": p.balance_sheet(ticker),
-            "cashflow": p.cash_flow(ticker)}
+            "cashflow": p.cash_flow(ticker),
+            "consensus": {}}
 
 
 @cache_data(ttl=86400)
@@ -99,6 +105,9 @@ class MultiProvider:
 
     def source(self, ticker: str) -> str:
         return self._get(ticker)["source"]
+
+    def consensus(self, ticker: str) -> dict:
+        return self._get(ticker)["consensus"]
 
     def peer_suggestions(self, ticker: str) -> list[str]:
         info = self.company_info(ticker)

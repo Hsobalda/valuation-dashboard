@@ -40,7 +40,7 @@ def test_grid_centre_cell_matches_headline_fair_value():
     """The sensitivity grid is built around the base discount rate / terminal growth,
     so its centre cell must equal the headline fair value from run_valuation."""
     assumptions = Assumptions(
-        revenue_growth=0.05, ebit_margin=0.20, tax_rate=0.21,
+        growth_y1=0.05, growth_y2=0.05, growth_y5=0.05, ebit_margin=0.20, tax_rate=0.21,
         fade_years=10, terminal_growth=0.025, discount_rate=0.08, margin_of_safety=0.25,
     )
     run = run_valuation(base_revenue=1000.0, assumptions=assumptions)
