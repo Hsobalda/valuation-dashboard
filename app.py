@@ -11,7 +11,7 @@ import pandas as pd
 
 from data import MultiProvider, sample_tickers
 from brief import build_brief, dcf_applicable, derive_starting_assumptions
-from engine import run_valuation, comps_analysis
+from engine import comps_analysis, implied_revenue_growth, run_valuation
 from ui import charts
 from ui.assumptions import render_assumption_panel
 
@@ -155,6 +155,23 @@ else:
     m2.metric("Upside / downside vs price", fmt_pct(upside))
     m3.metric("Buy zone (≤)", fmt_money(buy_zone, ccy))
     m4.metric("Terminal value % of EV", fmt_pct(res.terminal_share_of_ev))
+
+    implied = implied_revenue_growth(
+        price, metrics["revenue"], assumptions, net_debt=metrics["net_debt"],
+        minority_interest=metrics["minority_interest"], shares_diluted=metrics["shares_diluted"],
+    )
+    if implied is None:
+        st.markdown(
+            "**Reverse DCF:** no growth rate between −10% and 40% a year justifies the "
+            "current price with your other assumptions, so the gap is in margins, "
+            "reinvestment or the discount rate rather than growth."
+        )
+    else:
+        st.markdown(
+            f"**Reverse DCF:** at {fmt_money(price, ccy)} the market is pricing in about "
+            f"**{implied:.1%}** revenue growth a year for the next {assumptions.years} years "
+            f"(you assume {assumptions.revenue_growth:.1%}), holding your other assumptions fixed."
+        )
 
     if res.terminal_share_of_ev > 0.8:
         st.warning(

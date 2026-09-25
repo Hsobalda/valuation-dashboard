@@ -267,8 +267,9 @@ def panel_priced_in(provider, ticker: str) -> dict:
         "what_this_means": (
             "The market is always pricing in *some* forecast. Compare these "
             "multiples to the peers below and ask: is the premium/discount "
-            "justified by Panels B-E? Your variant view is the specific place "
-            "you believe the market is wrong."
+            "justified by Panels B-E? The reverse DCF in section 4 shows the "
+            "growth today's price implies; your variant view is where you "
+            "believe the market is wrong."
         ),
     }
 

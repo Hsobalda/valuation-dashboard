@@ -6,6 +6,7 @@ yfinance, so every calculation can be tested in isolation.
 
 from .dcf import ValuationResult, dcf_3stage
 from .projection import project_fcff
+from .reverse import implied_revenue_growth
 from .quality import (
     fcf_conversion_series,
     gross_margin,
@@ -27,6 +28,7 @@ __all__ = [
     "cost_of_equity",
     "wacc",
     "project_fcff",
+    "implied_revenue_growth",
     "dcf_3stage",
     "sensitivity_grid",
     "run_valuation",
