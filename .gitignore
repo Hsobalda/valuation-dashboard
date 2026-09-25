@@ -13,3 +13,6 @@ venv/
 # Local agent tooling (symlinks into .venv)
 .agents/
 .claude/
+
+# Personal valuation journal
+journal/

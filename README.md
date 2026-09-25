@@ -39,6 +39,9 @@ the user can see where every input came from before changing it.
   because Yahoo reports no EBITDA for lenders.
 - Bear / base / bull scenarios on growth and margin, with a probability-weighted
   fair value.
+- Valuation journal: save a valuation with a Buy / Watch / Pass decision and a
+  thesis, then track the return since each call and a scorecard by decision.
+  Kept locally in `journal/` (git-ignored) as a record against hindsight bias.
 - Buy price after a margin of safety set by an uncertainty rating (Low 20%, Medium
   30%, High 40%, Very high 50%, the scale Morningstar uses), seeded from margin
   stability, leverage, beta and free cash flow history.

@@ -6,6 +6,8 @@ assumption panel. No valuation math lives here.
 
 from __future__ import annotations
 
+import dataclasses
+import datetime as dt
 import math
 import os
 
@@ -18,6 +20,7 @@ from engine import comps_analysis, implied_revenue_growth, run_scenarios, run_va
 from ui import charts
 from ui.tables import projection_table, reinvestment_history_table
 from ui.assumptions import render_assumption_panel
+from ui.journal import render_history, render_save_form
 
 st.set_page_config(page_title="Valuation Dashboard", layout="wide")
 
@@ -397,6 +400,26 @@ if run is not None:
         st.success(f"Current price {fmt_money(price, ccy)} is at or below the buy zone.")
     else:
         st.info(f"Current price {fmt_money(price, ccy)} is above the buy zone of {fmt_money(buy_zone, ccy)}.")
+
+# --- 7. journal --------------------------------------------------------------
+
+st.markdown("### 7. Valuation journal")
+if run is not None:
+    render_save_form({
+        "date": dt.date.today().isoformat(),
+        "ticker": ticker,
+        "name": info.get("name", ticker),
+        "currency": ccy,
+        "price": price,
+        "fair_value": fair_value,
+        **{s.name.lower(): s.value_per_share for s in scen.scenarios},
+        "buy_zone": buy_zone,
+        "margin_of_safety": assumptions.margin_of_safety,
+        "assumptions": dataclasses.asdict(assumptions),
+        "data": "sample" if source == "sample" else
+                ("SEC filings + Yahoo" if provider.uses_sec_filings(ticker) else "Yahoo"),
+    })
+render_history(provider, ticker)
 
 st.markdown("---")
 st.caption(

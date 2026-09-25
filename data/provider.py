@@ -139,6 +139,7 @@ class SampleProvider:
         info, inc = COMPANIES[ticker]["info"], self._frames[ticker]["income"]
         return {
             "ticker": ticker,
+            "price": COMPANIES[ticker]["market"]["price"],
             "name": info["name"],
             "industry": info["industry"],
             "sector": info["sector"],
@@ -292,8 +293,10 @@ class YFinanceProvider:
         info = self._ticker(ticker).info or {}
         cur = self._MINOR_UNITS.get(info.get("currency"), info.get("currency", ""))
         fin = self._MINOR_UNITS.get(info.get("financialCurrency"), info.get("financialCurrency", ""))
+        unit = 100.0 if info.get("currency") in self._MINOR_UNITS else 1.0
         return {
             "ticker": ticker,
+            "price": float(info.get("currentPrice") or info.get("regularMarketPrice") or 0.0) / unit,
             "name": info.get("shortName") or ticker,
             "industry": info.get("industry", ""),
             "sector": info.get("sector", ""),
