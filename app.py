@@ -157,6 +157,7 @@ else:
             net_debt=metrics["net_debt"],
             minority_interest=metrics["minority_interest"],
             shares_diluted=metrics["shares_diluted"],
+            years_since_fy_end=metrics["years_since_fy_end"],
         )
     except ValueError as e:
         st.error(f"Valuation failed: {e}")
@@ -166,6 +167,7 @@ else:
     scen = run_scenarios(
         metrics["revenue"], assumptions, net_debt=metrics["net_debt"],
         minority_interest=metrics["minority_interest"], shares_diluted=metrics["shares_diluted"],
+        years_since_fy_end=metrics["years_since_fy_end"],
     )
     fair_value = scen.weighted_value
     upside = fair_value / price - 1 if price else float("nan")
@@ -188,6 +190,7 @@ else:
     implied = implied_revenue_growth(
         price, metrics["revenue"], assumptions, net_debt=metrics["net_debt"],
         minority_interest=metrics["minority_interest"], shares_diluted=metrics["shares_diluted"],
+        years_since_fy_end=metrics["years_since_fy_end"],
     )
     if implied is None and assumptions.roic <= assumptions.discount_rate:
         st.markdown(
@@ -211,6 +214,19 @@ else:
             f"**{implied:.1%}** revenue growth a year for the next {assumptions.years} years "
             f"(your path averages {path_avg:.1%}), holding your other assumptions fixed."
         )
+
+    yrs = metrics["years_since_fy_end"]
+    current_nopat = metrics["revenue"] * assumptions.ebit_margin * (1 - assumptions.tax_rate)
+    market_ev = metrics["market_cap"] + metrics["net_debt"] + metrics["minority_interest"]
+    exit_multiple = res.terminal_value / res.final_nopat if res.final_nopat > 0 else float("nan")
+    st.caption(
+        f"Valued as of today: cash flows are discounted mid-year"
+        + (f", and the last fiscal year ended {yrs * 12:.0f} months ago" if yrs else "")
+        + f". The terminal value is {exit_multiple:.1f}× final-year NOPAT; the market "
+        f"values the company at {market_ev / current_nopat:.1f}× today's NOPAT."
+        if current_nopat > 0 and exit_multiple == exit_multiple else
+        "Valued as of today: cash flows are discounted mid-year."
+    )
 
     if res.terminal_share_of_ev > 0.8:
         st.warning(

@@ -39,6 +39,8 @@ class ValuationResult:
     equity_value: float         # EV - net debt - minority interest
     equity_value_per_share: float
     terminal_share_of_ev: float  # pv_terminal / EV -- warn when > 0.8
+    terminal_value: float = 0.0  # undiscounted, at the end of the fade
+    final_nopat: float = 0.0     # NOPAT in the last fade year
 
 
 def _derive_exit_growth(fcff: list[float], terminal_growth: float) -> float:
@@ -60,6 +62,7 @@ def dcf_3stage(
     nopat_last: float | None = None,
     roic_start: float = math.inf,
     terminal_excess_return: float = 0.0,
+    discount_shift: float = 0.0,
 ) -> ValuationResult:
     """Discount FCFF through the three stages and bridge to per-share equity.
 
@@ -68,6 +71,10 @@ def dcf_3stage(
     reinvestment growth requires. The terminal return is the discount rate plus
     `terminal_excess_return` (default 0: competition erodes excess returns;
     positive for a moat expected to last indefinitely).
+
+    `discount_shift` moves every cash flow earlier by that many years: 0.5 for
+    the mid-year convention (cash arrives through the year, not on its last
+    day), plus the time already elapsed since the base fiscal year ended.
     """
     if discount_rate <= 0:
         raise ValueError("Discount rate must be positive")
@@ -86,7 +93,10 @@ def dcf_3stage(
     last_fcf = fcff_stage1[-1] if fcff_stage1 else 0.0
 
     # Stage 1 -- explicit projection, year-end discounting.
-    pv_explicit = sum(f / (1.0 + discount_rate) ** (t + 1) for t, f in enumerate(fcff_stage1))
+    def pv(amount: float, year: float) -> float:
+        return amount / (1.0 + discount_rate) ** (year - discount_shift)
+
+    pv_explicit = sum(pv(f, t + 1) for t, f in enumerate(fcff_stage1))
 
     # Stage 2 -- growth and ROIC fade linearly over fade_years.
     if stage1_growth is None:
@@ -110,12 +120,12 @@ def dcf_3stage(
         g = stage1_growth + (terminal_growth - stage1_growth) * (i / fade_years)
         nopat = nopat * (1.0 + g)
         fcf = nopat * (1.0 - g / roic_at(i))
-        pv_fade += fcf / (1.0 + discount_rate) ** (n + i)
+        pv_fade += pv(fcf, n + i)
 
     # Stage 3 -- value-driver perpetuity on the year after the fade.
     terminal_fcf = nopat * (1.0 + terminal_growth) * (1.0 - terminal_growth / terminal_roic)
     terminal_value = terminal_fcf / (discount_rate - terminal_growth)
-    pv_terminal = terminal_value / (1.0 + discount_rate) ** (n + fade_years)
+    pv_terminal = pv(terminal_value, n + fade_years)
 
     enterprise_value = pv_explicit + pv_fade + pv_terminal
     equity_value = enterprise_value - net_debt - minority_interest
@@ -130,4 +140,6 @@ def dcf_3stage(
         equity_value=equity_value,
         equity_value_per_share=equity_value_per_share,
         terminal_share_of_ev=terminal_share,
+        terminal_value=terminal_value,
+        final_nopat=nopat,
     )

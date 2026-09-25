@@ -12,6 +12,7 @@ def implied_revenue_growth(
     net_debt: float = 0.0,
     minority_interest: float = 0.0,
     shares_diluted: float = 1.0,
+    years_since_fy_end: float = 0.0,
     low: float = -0.10,
     high: float = 0.40,
 ) -> float | None:
@@ -22,7 +23,8 @@ def implied_revenue_growth(
     """
     def gap(g: float) -> float:
         a = assumptions.with_flat_growth(g)
-        return value_per_share(base_revenue, a, net_debt, minority_interest, shares_diluted) - price
+        return value_per_share(base_revenue, a, net_debt, minority_interest, shares_diluted,
+                               years_since_fy_end) - price
 
     gap_low, gap_high = gap(low), gap(high)
     if gap_low * gap_high > 0:

@@ -75,6 +75,11 @@ setting it is an explicit bet on durability, which is what a high multiple for
 a company like Apple implies.
 A company whose ROIC is below the discount rate destroys value by growing.
 
+Cash flows are discounted mid-year (they arrive through the year, not on its last
+day) and from today rather than from the last fiscal year end. The app also
+shows the terminal value as a multiple of final-year NOPAT beside the multiple
+the market pays today, which makes the terminal assumption easy to challenge.
+
 Starting assumptions come from the company's history with guards against
 distorted years: historical and year-5 growth seeds are capped at 15%, the target margin is the median
 rather than the mean, and with no positive ROIC history the seed is the discount

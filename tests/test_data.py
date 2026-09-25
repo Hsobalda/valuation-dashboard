@@ -119,3 +119,14 @@ def test_us_operating_leases_taken_out_of_debt():
     assert exclude_operating_leases(bal)["total_debt"].iloc[0] == pytest.approx(16.1)
     no_leases = pd.DataFrame({"total_debt": [5.0]}, index=[2025])
     assert exclude_operating_leases(no_leases)["total_debt"].iloc[0] == 5.0
+
+
+def test_years_since_fiscal_year_end():
+    import datetime as dt
+
+    from data.provider import _years_since
+
+    half_year_ago = (dt.date.today() - dt.timedelta(days=183)).isoformat()
+    assert _years_since(half_year_ago) == pytest.approx(0.5, abs=0.01)
+    assert _years_since(None) == 0.0
+    assert _years_since("2000-01-01") == 1.5  # stale data capped

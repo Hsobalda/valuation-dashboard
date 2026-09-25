@@ -22,7 +22,8 @@ class ScenarioRun:
 
 
 def run_scenarios(base_revenue: float, a: Assumptions, net_debt: float = 0.0,
-                  minority_interest: float = 0.0, shares_diluted: float = 1.0) -> ScenarioRun:
+                  minority_interest: float = 0.0, shares_diluted: float = 1.0,
+                  years_since_fy_end: float = 0.0) -> ScenarioRun:
     """Bear and bull shift the whole growth path and the target margin by the swings in
     `a`; each gets `a.tail_probability`, the base case the rest."""
     target = a.ebit_margin if a.target_ebit_margin is None else a.target_ebit_margin
@@ -36,6 +37,7 @@ def run_scenarios(base_revenue: float, a: Assumptions, net_debt: float = 0.0,
         shift = sign * a.growth_swing
         s = replace(a, growth_y1=a.growth_y1 + shift, growth_y2=a.growth_y2 + shift,
                     growth_y5=a.growth_y5 + shift, target_ebit_margin=target + sign * a.margin_swing)
-        v = value_per_share(base_revenue, s, net_debt, minority_interest, shares_diluted)
+        v = value_per_share(base_revenue, s, net_debt, minority_interest, shares_diluted,
+                            years_since_fy_end)
         scenarios.append(Scenario(name, prob, s, max(v, 0.0)))
     return ScenarioRun(scenarios, sum(s.probability * s.value_per_share for s in scenarios))

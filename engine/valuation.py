@@ -67,8 +67,10 @@ def _projection(base_revenue: float, a: Assumptions) -> Projection:
 
 
 def _dcf_kwargs(proj: Projection, a: Assumptions, net_debt: float,
-                minority_interest: float, shares_diluted: float) -> dict:
+                minority_interest: float, shares_diluted: float,
+                years_since_fy_end: float) -> dict:
     return dict(
+        discount_shift=0.5 + years_since_fy_end,  # mid-year convention + time since FY end
         fade_years=a.fade_years,
         stage1_growth=a.growth_path()[-1],
         terminal_excess_return=a.terminal_excess_return,
@@ -81,11 +83,12 @@ def _dcf_kwargs(proj: Projection, a: Assumptions, net_debt: float,
 
 
 def value_per_share(base_revenue: float, a: Assumptions, net_debt: float = 0.0,
-                    minority_interest: float = 0.0, shares_diluted: float = 1.0) -> float:
+                    minority_interest: float = 0.0, shares_diluted: float = 1.0,
+                    years_since_fy_end: float = 0.0) -> float:
     proj = _projection(base_revenue, a)
     return dcf_3stage(
         proj.fcff, discount_rate=a.discount_rate, terminal_growth=a.terminal_growth,
-        **_dcf_kwargs(proj, a, net_debt, minority_interest, shares_diluted),
+        **_dcf_kwargs(proj, a, net_debt, minority_interest, shares_diluted, years_since_fy_end),
     ).equity_value_per_share
 
 
@@ -95,11 +98,12 @@ def run_valuation(
     net_debt: float = 0.0,
     minority_interest: float = 0.0,
     shares_diluted: float = 1.0,
+    years_since_fy_end: float = 0.0,
 ) -> ValuationRun:
     """Project Stage 1, run the 3-stage DCF, and build the sensitivity grid."""
     a = assumptions
     proj = _projection(base_revenue, a)
-    kwargs = _dcf_kwargs(proj, a, net_debt, minority_interest, shares_diluted)
+    kwargs = _dcf_kwargs(proj, a, net_debt, minority_interest, shares_diluted, years_since_fy_end)
     result = dcf_3stage(proj.fcff, discount_rate=a.discount_rate,
                         terminal_growth=a.terminal_growth, **kwargs)
     grid = sensitivity_grid(

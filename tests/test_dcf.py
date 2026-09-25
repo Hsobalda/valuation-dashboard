@@ -133,3 +133,12 @@ def test_terminal_excess_return_adds_value_through_growth():
     lasting_moat = dcf_3stage([100.0], terminal_excess_return=0.10, **kwargs).pv_terminal
     # RONIC 20%: TV = 103 * (1 - 0.03/0.20) / 0.07 vs 103 * (1 - 0.03/0.10) / 0.07
     assert lasting_moat / no_moat == pytest.approx((1 - 0.03 / 0.20) / (1 - 0.03 / 0.10))
+
+
+def test_discount_shift_scales_every_cash_flow_uniformly():
+    """Shifting all cash flows s years earlier multiplies EV by (1 + r)^s."""
+    kwargs = dict(discount_rate=0.10, fade_years=5, terminal_growth=0.02,
+                  stage1_growth=0.05, nopat_last=100.0, roic_start=0.20)
+    base = dcf_3stage([90.0, 95.0, 100.0], **kwargs).enterprise_value
+    shifted = dcf_3stage([90.0, 95.0, 100.0], discount_shift=0.5, **kwargs).enterprise_value
+    assert shifted / base == pytest.approx(1.1 ** 0.5)

@@ -10,6 +10,7 @@ engine, brief, or UI: they all depend only on `DataProvider`.
 
 from __future__ import annotations
 
+import datetime as dt
 from typing import Protocol
 
 import pandas as pd
@@ -36,6 +37,14 @@ def _latest(series: pd.Series) -> float:
     if clean.empty:
         return 0.0
     return float(clean.iloc[-1])
+
+
+def _years_since(iso_date: str | None) -> float:
+    """Years from the base fiscal year end to today; 0 when unknown (sample data)."""
+    if not iso_date:
+        return 0.0
+    days = (dt.date.today() - dt.date.fromisoformat(iso_date)).days
+    return min(max(days / 365.25, 0.0), 1.5)
 
 
 def derive_metrics(info: dict, market: dict, income: pd.DataFrame,
@@ -82,6 +91,7 @@ def derive_metrics(info: dict, market: dict, income: pd.DataFrame,
         "price": market.get("price", 0.0),
         "shares_outstanding": market.get("shares_outstanding", 0.0),
         "shares_diluted": shares_diluted,
+        "years_since_fy_end": _years_since(market.get("fiscal_year_end")),
     }
 
 
@@ -239,7 +249,9 @@ class YFinanceProvider:
         price = float(info.get("currentPrice") or info.get("regularMarketPrice") or 0.0)
         if info.get("currency") in self._MINOR_UNITS:
             price /= 100.0
+        fy_end = info.get("lastFiscalYearEnd")
         return {
+            "fiscal_year_end": dt.date.fromtimestamp(fy_end).isoformat() if fy_end else None,
             "price": price,
             "market_cap": float(info.get("marketCap") or 0.0),
             "shares_outstanding": float(info.get("sharesOutstanding") or 0.0),
