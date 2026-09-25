@@ -64,7 +64,8 @@ def derive_metrics(info: dict, market: dict, income: pd.DataFrame,
     shares_diluted = shares * max(dilution, 1.0)
     net_debt = debt - cash - st_inv
     bvps = equity / shares if shares else 0.0
-    fcf = f(cashflow, "operating_cash_flow") - f(cashflow, "capital_expenditure")
+    fcf = (f(cashflow, "operating_cash_flow") - f(cashflow, "capital_expenditure")
+           - f(cashflow, "stock_based_compensation"))
 
     return {
         "revenue": revenue,
@@ -195,7 +196,7 @@ class YFinanceProvider:
         raw = self._ticker(ticker).cashflow
         df = self._normalize(raw, S.YF_CASHFLOW_MAP)
         # store cash outflows as positive magnitudes (schema convention)
-        for field in ("capital_expenditure", "dividends_paid", "stock_buybacks"):
+        for field in ("capital_expenditure", "dividends_paid", "stock_buybacks", "stock_based_compensation"):
             if field in df.columns:
                 df[field] = df[field].abs()
         return df

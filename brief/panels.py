@@ -41,7 +41,10 @@ def _ebitda(income: pd.DataFrame) -> pd.Series:
 
 
 def _fcf(cashflow: pd.DataFrame) -> pd.Series:
-    return _col(cashflow, "operating_cash_flow") - _col(cashflow, "capital_expenditure")
+    """Free cash flow after stock-based pay. Operating cash flow adds SBC back as
+    "non-cash", but paying staff in shares is a real cost to shareholders."""
+    return (_col(cashflow, "operating_cash_flow") - _col(cashflow, "capital_expenditure")
+            - _col(cashflow, "stock_based_compensation"))
 
 
 def _effective_tax_rate(income: pd.DataFrame) -> pd.Series:
@@ -227,9 +230,13 @@ def panel_capital_allocation(provider, ticker: str) -> dict:
     fcf = _fcf(cf).dropna()
     dividends = _col(cf, "dividends_paid").reindex(fcf.index).fillna(0.0)
     buybacks = _col(cf, "stock_buybacks").reindex(fcf.index).fillna(0.0)
+    sbc = _col(cf, "stock_based_compensation").reindex(fcf.index).fillna(0.0)
     total_fcf = float(fcf.sum())
-    total_returned = float((dividends + buybacks).sum())
+    # buybacks up to the value of stock pay only stop dilution; what's returned
+    # to existing shareholders is the rest
+    total_returned = float((dividends + buybacks - sbc).sum())
     payout = total_returned / total_fcf if total_fcf > 0 else float("nan")
+    sbc_share_of_buybacks = float(sbc.sum() / buybacks.sum()) if buybacks.sum() > 0 else float("nan")
 
     shares = _col(inc, "shares_diluted_avg").replace(0, pd.NA).dropna().astype(float)
     share_cagr = _cagr(shares)
@@ -242,7 +249,7 @@ def panel_capital_allocation(provider, ticker: str) -> dict:
     flags = []
     if payout == payout and payout > 1.0:
         flags.append(
-            f"Returned {payout:.0%} of free cash flow over {fcf.size} years; the excess "
+            f"Returned {payout:.0%} of free cash flow (after stock pay) over {fcf.size} years; the excess "
             "came from cash or borrowing"
         )
     if total_fcf <= 0 and total_returned > 0:
@@ -256,6 +263,8 @@ def panel_capital_allocation(provider, ticker: str) -> dict:
         "fcf": fcf,
         "dividends": dividends,
         "buybacks": buybacks,
+        "sbc": sbc,
+        "sbc_share_of_buybacks": sbc_share_of_buybacks,
         "payout_of_fcf": payout,
         "share_cagr": share_cagr,
         "net_debt_start": nd_start,

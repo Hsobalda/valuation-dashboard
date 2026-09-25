@@ -104,7 +104,8 @@ with st.expander("D. How does it use its cash? (capital allocation)", expanded=T
     d = brief["capital_allocation"]
     st.plotly_chart(charts.capital_allocation_chart(d, info.get("currency", "")), width="stretch")
     st.caption(
-        f"Returned to shareholders: {fmt_pct(d['payout_of_fcf'])} of free cash flow · "
+        f"Returned to shareholders: {fmt_pct(d['payout_of_fcf'])} of free cash flow, net of "
+        f"buybacks that only offset stock pay ({fmt_pct(d['sbc_share_of_buybacks'])} of buybacks) · "
         f"diluted share count {fmt_pct(d['share_cagr'])} a year · net debt "
         f"{d['net_debt_start'] / 1e9:,.1f}bn → {d['net_debt_end'] / 1e9:,.1f}bn"
     )

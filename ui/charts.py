@@ -78,14 +78,19 @@ def sensitivity_heatmap(df) -> go.Figure:
 
 
 def capital_allocation_chart(brief_cap: dict, currency: str) -> go.Figure:
-    """Free cash flow beside dividends + buybacks (stacked), per fiscal year."""
-    fcf, div, buy = brief_cap["fcf"], brief_cap["dividends"], brief_cap["buybacks"]
-    scale, unit = (1e9, "bn") if fcf.abs().max() >= 1e9 else (1e6, "m")
+    """Cash generated (FCF after stock pay + stock pay) beside cash spent on
+    dividends + buybacks, per fiscal year."""
+    fcf, sbc = brief_cap["fcf"], brief_cap["sbc"]
+    div, buy = brief_cap["dividends"], brief_cap["buybacks"]
+    scale, unit = (1e9, "bn") if (fcf + sbc).abs().max() >= 1e9 else (1e6, "m")
     years = [str(y) for y in fcf.index]
     hover = "%{x} · %{fullData.name}: %{y:,.1f}" + unit + "<extra></extra>"
     fig = go.Figure()
-    fig.add_trace(go.Bar(x=years, y=fcf / scale, name="Free cash flow",
+    fig.add_trace(go.Bar(x=years, y=fcf / scale, name="Free cash flow after stock pay",
                          offsetgroup="fcf", marker_color="#2a78d6", hovertemplate=hover))
+    if sbc.abs().sum() > 0:
+        fig.add_trace(go.Bar(x=years, y=sbc / scale, name="Stock-based pay", base=fcf / scale,
+                             offsetgroup="fcf", marker_color="#eda100", hovertemplate=hover))
     fig.add_trace(go.Bar(x=years, y=div / scale, name="Dividends",
                          offsetgroup="returned", marker_color="#eb6834", hovertemplate=hover))
     fig.add_trace(go.Bar(x=years, y=buy / scale, name="Buybacks", base=div / scale,

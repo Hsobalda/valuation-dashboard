@@ -99,3 +99,15 @@ def test_capital_allocation_flags_overpayment_and_dilution():
     d = panel_capital_allocation(_CapStub([100.0, 100.0], [80.0, 80.0], [40.0, 40.0], [100.0, 104.0]), "X")
     assert d["payout_of_fcf"] == pytest.approx(1.2)
     assert len(d["flags"]) == 2
+
+
+def test_stock_pay_reduces_fcf_and_offsetting_buybacks_are_not_returns():
+    from brief import panel_capital_allocation
+
+    stub = _CapStub([100.0, 100.0], [0.0, 0.0], [50.0, 50.0])
+    stub.cf["stock_based_compensation"] = [20.0, 20.0]
+    d = panel_capital_allocation(stub, "X")
+    # FCF after stock pay = 80/yr; buybacks 50 of which 20 just offset dilution
+    assert list(d["fcf"]) == [80.0, 80.0]
+    assert d["payout_of_fcf"] == pytest.approx(60 / 160)
+    assert d["sbc_share_of_buybacks"] == pytest.approx(0.4)

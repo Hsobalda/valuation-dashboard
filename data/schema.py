@@ -41,6 +41,7 @@ CASHFLOW_FIELDS = [
     "capital_expenditure",
     "dividends_paid",
     "stock_buybacks",
+    "stock_based_compensation",
 ]
 
 # --- yfinance row-name -> normalized field mapping ---------------------------
@@ -81,6 +82,7 @@ YF_CASHFLOW_MAP = {
     "capital_expenditure": ["Capital Expenditure", "Capital Expenditures"],
     "dividends_paid": ["Cash Dividends Paid", "Common Stock Dividend Paid"],
     "stock_buybacks": ["Repurchase Of Capital Stock", "Common Stock Payments"],
+    "stock_based_compensation": ["Stock Based Compensation"],
 }
 
 
