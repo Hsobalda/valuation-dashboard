@@ -34,6 +34,7 @@ BALANCE_FIELDS = [
     "stockholder_equity",
     "minority_interest",
     "goodwill",
+    "lease_liabilities",
 ]
 
 CASHFLOW_FIELDS = [
@@ -75,6 +76,7 @@ YF_BALANCE_MAP = {
     "stockholder_equity": ["Stockholders Equity", "Common Stock Equity", "Total Equity Gross Minority Interest"],
     "minority_interest": ["Minority Interest"],
     "goodwill": ["Goodwill"],
+    "lease_liabilities": ["Capital Lease Obligations"],
 }
 
 YF_CASHFLOW_MAP = {

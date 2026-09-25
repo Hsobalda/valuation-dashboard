@@ -85,6 +85,24 @@ def derive_metrics(info: dict, market: dict, income: pd.DataFrame,
     }
 
 
+def exclude_operating_leases(balance: pd.DataFrame) -> pd.DataFrame:
+    """Take lease liabilities out of debt for a US GAAP company.
+
+    Yahoo's total debt includes lease liabilities. Under IFRS 16 that is
+    consistent: lease cost sits below EBIT (depreciation plus interest), so
+    leases are financing. Under US GAAP (ASC 842) operating-lease rent is
+    already deducted in EBIT, so also counting the liability as debt charges for
+    the leases twice. Yahoo doesn't split operating from finance leases, so the
+    whole line is treated as operating, which slightly flatters companies with
+    large finance leases.
+    """
+    if "lease_liabilities" not in balance.columns or "total_debt" not in balance.columns:
+        return balance
+    out = balance.copy()
+    out["total_debt"] = (out["total_debt"] - out["lease_liabilities"].fillna(0.0)).clip(lower=0.0)
+    return out
+
+
 # --- sample (offline) provider ----------------------------------------------
 
 class SampleProvider:
@@ -190,7 +208,9 @@ class YFinanceProvider:
 
     def balance_sheet(self, ticker: str, period: str = "annual") -> pd.DataFrame:
         raw = self._ticker(ticker).balance_sheet
-        return self._normalize(raw, S.YF_BALANCE_MAP)
+        df = self._normalize(raw, S.YF_BALANCE_MAP)
+        country = (self._ticker(ticker).info or {}).get("country", "")
+        return exclude_operating_leases(df) if country == "United States" else df
 
     def cash_flow(self, ticker: str, period: str = "annual") -> pd.DataFrame:
         raw = self._ticker(ticker).cashflow

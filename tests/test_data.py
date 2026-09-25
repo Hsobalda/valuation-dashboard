@@ -108,3 +108,14 @@ def test_peer_suggestions_keep_comparable_industry_peers():
     p = YFinanceProvider()
     p._yf = _fake_yf({"KO": 0.5, "PEP": 0.25, "MNST": 0.12, "KDP": 0.06, "SMALL": 0.01}, ["X"])
     assert p.peer_suggestions("KO", "ind", "sec") == ["PEP", "MNST", "KDP"]
+
+
+def test_us_operating_leases_taken_out_of_debt():
+    import pandas as pd
+
+    from data.provider import exclude_operating_leases
+
+    bal = pd.DataFrame({"total_debt": [26.6], "lease_liabilities": [10.5]}, index=[2025])
+    assert exclude_operating_leases(bal)["total_debt"].iloc[0] == pytest.approx(16.1)
+    no_leases = pd.DataFrame({"total_debt": [5.0]}, index=[2025])
+    assert exclude_operating_leases(no_leases)["total_debt"].iloc[0] == 5.0

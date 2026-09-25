@@ -87,6 +87,16 @@ scaled by the latest year's diluted/basic ratio).
 Quality metrics include ROIC, gross/operating/net margins, margin volatility and
 FCF conversion (FCF / net income).
 
+Accounting adjustments:
+
+- **Stock-based pay** is already an expense in operating income, so the DCF counts
+  it. Free cash flow elsewhere (capital allocation, FCF conversion) deducts it
+  too, since operating cash flow adds it back as "non-cash"; buybacks that only
+  offset stock pay aren't counted as returns to shareholders.
+- **Leases** are debt for IFRS reporters (IFRS 16 puts lease cost below EBIT) but
+  not for US GAAP companies, whose operating-lease rent is already inside EBIT;
+  counting the liability as well would charge for the leases twice.
+
 Comparables use the median multiple of the peer set, excluding the target itself
 and any negative multiples (e.g. P/E for a loss-making peer).
 
