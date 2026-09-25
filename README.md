@@ -28,7 +28,11 @@ the user can see where every input came from before changing it.
   the DCF value and current price.
 - Banks and insurers are valued on comparables only, since free cash flow to the
   firm isn't meaningful when debt is the raw material of the business.
-- Buy price after applying a required margin of safety.
+- Bear / base / bull scenarios on growth and margin, with a probability-weighted
+  fair value.
+- Buy price after a margin of safety set by an uncertainty rating (Low 20%, Medium
+  30%, High 40%, Very high 50%, the scale Morningstar uses), seeded from margin
+  stability, leverage, beta and free cash flow history.
 
 ## Methodology
 
@@ -61,7 +65,14 @@ with no moat, 10 for a narrow moat and 20 for a wide one, following the approach
 Morningstar uses. In the terminal stage new investment earns exactly the required
 return, so the terminal value reduces to NOPAT / r and terminal growth adds
 almost no value: competition is assumed to have eroded excess returns by then.
-A company whose ROIC is below the discount rate destroys value by growing. Enterprise value less net debt and minority interest gives
+A company whose ROIC is below the discount rate destroys value by growing.
+
+Starting assumptions come from the company's history with guards against
+distorted years: seeded growth is capped at 15%, the target margin is the median
+rather than the mean, and with no positive ROIC history the seed is the discount
+rate. Fair value is the probability-weighted value of bear, base and bull cases
+(25/50/25 by default), each floored at zero since shareholders can't lose more
+than they invest. Enterprise value less net debt and minority interest gives
 equity value, which is divided by diluted shares (current shares outstanding
 scaled by the latest year's diluted/basic ratio).
 

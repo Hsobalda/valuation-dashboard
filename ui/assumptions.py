@@ -93,6 +93,23 @@ def render_assumption_panel(seed: dict, ticker: str) -> Assumptions:
     ) or seed["uncertainty"]
     margin_of_safety = mos_by_rating[rating]
 
+    s1, s2, s3 = st.columns(3)
+    with s1:
+        growth_swing = _pct_slider(
+            "Bear/bull growth swing (±)", 0.0, 10.0, seed["growth_swing"], 0.25,
+            key=f"{ticker}:growth_swing", help=prov.get("growth_swing"),
+        )
+    with s2:
+        margin_swing = _pct_slider(
+            "Bear/bull target margin swing (±)", 0.0, 10.0, seed["margin_swing"], 0.25,
+            key=f"{ticker}:margin_swing", help=prov.get("margin_swing"),
+        )
+    with s3:
+        tail_probability = _pct_slider(
+            "Probability of bear, and of bull", 5.0, 45.0, seed["tail_probability"], 5.0,
+            key=f"{ticker}:tail_probability", help=prov.get("tail_probability"),
+        )
+
     return Assumptions(
         revenue_growth=revenue_growth,
         ebit_margin=ebit_margin,
@@ -103,4 +120,7 @@ def render_assumption_panel(seed: dict, ticker: str) -> Assumptions:
         terminal_growth=terminal_growth,
         discount_rate=discount_rate,
         margin_of_safety=margin_of_safety,
+        growth_swing=growth_swing,
+        margin_swing=margin_swing,
+        tail_probability=tail_probability,
     )

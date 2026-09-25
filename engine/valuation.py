@@ -27,6 +27,9 @@ class Assumptions:
     discount_rate: float = 0.10
     margin_of_safety: float = 0.25
     years: int = 5
+    growth_swing: float = 0.03  # bear/bull scenarios: +/- revenue growth
+    margin_swing: float = 0.02  # bear/bull scenarios: +/- target EBIT margin
+    tail_probability: float = 0.25  # probability of each of bear and bull
 
 
 @dataclass

@@ -11,7 +11,7 @@ import pandas as pd
 
 from data import MultiProvider, sample_tickers
 from brief import build_brief, dcf_applicable, derive_starting_assumptions, reinvestment_history
-from engine import comps_analysis, implied_revenue_growth, run_valuation
+from engine import comps_analysis, implied_revenue_growth, run_scenarios, run_valuation
 from ui import charts
 from ui.tables import projection_table, reinvestment_history_table
 from ui.assumptions import render_assumption_panel
@@ -160,20 +160,24 @@ else:
         st.stop()
 
     res = run.result
-    upside = res.equity_value_per_share / price - 1 if price else float("nan")
-    buy_zone = res.equity_value_per_share * (1.0 - assumptions.margin_of_safety)
+    scen = run_scenarios(
+        metrics["revenue"], assumptions, net_debt=metrics["net_debt"],
+        minority_interest=metrics["minority_interest"], shares_diluted=metrics["shares_diluted"],
+    )
+    fair_value = scen.weighted_value
+    upside = fair_value / price - 1 if price else float("nan")
+    buy_zone = fair_value * (1.0 - assumptions.margin_of_safety)
 
     if res.equity_value_per_share <= 0:
         st.warning(
-            "Debt exceeds the value of the operations on these assumptions, so the equity "
-            "is worth nothing today (shareholders can't lose more than they put in). "
-            "Any value left is option value on a recovery; check the assumptions first."
+            "In the base case debt exceeds the value of the operations, so the equity is "
+            "worth nothing (shareholders can't lose more than they put in). Any value "
+            "shown comes from the bull case; check the assumptions first."
         )
-        buy_zone = 0.0
-        upside = -1.0
 
     m1, m2, m3, m4 = st.columns(4)
-    m1.metric("Est. fair value / share", fmt_money(max(res.equity_value_per_share, 0.0), ccy))
+    m1.metric("Fair value / share", fmt_money(fair_value, ccy),
+              help="Probability-weighted across the bear, base and bull cases below")
     m2.metric("Upside / downside vs price", fmt_pct(upside))
     m3.metric("Buy zone (≤)", fmt_money(buy_zone, ccy))
     m4.metric("Terminal value % of EV", fmt_pct(res.terminal_share_of_ev))
@@ -208,6 +212,15 @@ else:
             f"Terminal value is {res.terminal_share_of_ev:.0%} of enterprise value — the "
             "model is effectively a single bet on long-run growth. Stress-test it (below)."
         )
+
+    st.markdown("#### Scenarios")
+    st.dataframe(pd.DataFrame({
+        "Probability": [f"{s.probability:.0%}" for s in scen.scenarios],
+        "Revenue growth": [f"{s.assumptions.revenue_growth:.1%}" for s in scen.scenarios],
+        "Target EBIT margin": [f"{s.assumptions.target_ebit_margin:.1%}" for s in scen.scenarios],
+        "Value / share": [fmt_money(s.value_per_share, ccy) for s in scen.scenarios],
+        "vs price": [fmt_pct(s.value_per_share / price - 1) if price else "—" for s in scen.scenarios],
+    }, index=[s.name for s in scen.scenarios]), width="stretch")
 
     st.plotly_chart(charts.sensitivity_heatmap(run.sensitivity), width="stretch")
 
@@ -254,6 +267,7 @@ if peers:
     ranges = {}
     if run is not None:
         dcf_vals = [v for row in run.sensitivity.values for v in row if v is not None and v == v]
+        ranges["DCF (bear–bull)"] = (scen.scenarios[0].value_per_share, scen.scenarios[-1].value_per_share)
         ranges["DCF (sensitivity)"] = (min(dcf_vals), max(dcf_vals))
     comp_vals = [v for v in comps.implied_values.values() if v is not None and v == v]
     if comp_vals:
@@ -271,7 +285,7 @@ if run is not None:
     st.write(
         f"Required margin of safety: **{mos:.0%}** → you'd want to pay no more than "
         f"**{fmt_money(buy_zone, ccy)}** for a value estimate of "
-        f"{fmt_money(max(run.result.equity_value_per_share, 0.0), ccy)}."
+        f"{fmt_money(fair_value, ccy)}."
     )
     if price <= buy_zone:
         st.success(f"Current price {fmt_money(price, ccy)} is at or below the buy zone.")

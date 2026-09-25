@@ -49,6 +49,8 @@ def derive_starting_assumptions(provider, ticker: str) -> dict:
                if "operating_income" in inc.columns else pd.Series(dtype=float))
     target_margin = float(margins.median()) if margins.size else ebit_margin
     ebit_margin, target_margin = (min(max(m, -0.30), 0.75) for m in (ebit_margin, target_margin))
+    # bear/bull margin swing: how much the margin has actually moved, at least 2pp
+    margin_swing = min(max(float(margins.std()) if margins.size >= 3 else 0.0, 0.02), 0.10)
 
     # no positive ROIC history -> assume new capital earns the discount rate,
     # so growth neither creates nor destroys value
@@ -73,6 +75,9 @@ def derive_starting_assumptions(provider, ticker: str) -> dict:
         "fade_years": 10,
         "terminal_growth": 0.025,
         "discount_rate": DISCOUNT_RATE,
+        "growth_swing": 0.03,
+        "margin_swing": margin_swing,
+        "tail_probability": 0.25,
         "uncertainty": unc["rating"],
         "uncertainty_mos": UNCERTAINTY_MOS,
         "margin_of_safety": UNCERTAINTY_MOS[unc["rating"]],
@@ -103,6 +108,12 @@ def derive_starting_assumptions(provider, ticker: str) -> dict:
                 f"reference is {ref['wacc']:.1%}"
             ),
             "uncertainty": "; ".join(unc["reasons"]),
+            "growth_swing": "bear/bull revenue growth is base growth minus/plus this",
+            "margin_swing": (
+                "bear/bull target margin is base minus/plus this; seeded from how much "
+                "the operating margin has varied historically (at least 2pp)"
+            ),
+            "tail_probability": "chance of the bear case, and separately of the bull case",
         },
     }
 
