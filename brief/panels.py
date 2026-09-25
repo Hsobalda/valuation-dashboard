@@ -410,6 +410,37 @@ def _cagr(series: pd.Series) -> float:
     return (s.iloc[-1] / s.iloc[0]) ** (1 / years) - 1.0
 
 
+def insider_summary(trades: list[dict]) -> dict:
+    """Open-market buying and selling by insiders, separated from routine activity.
+
+    Open-market purchases are the informative trades: insiders sell for many
+    reasons (tax, diversification, a house) but buy with their own money for one.
+    Sales under a pre-arranged 10b5-1 plan say little about the insider's view today.
+    """
+    buys = [t for t in trades if t["code"] == "P"]
+    sells = [t for t in trades if t["code"] == "S"]
+    discretionary = [t for t in sells if not t["planned"]]
+    return {
+        "title": "G. What are insiders doing?",
+        "decision": "conviction check (who is buying with their own money)",
+        "buy_count": len(buys),
+        "buy_value": sum(t["value"] for t in buys),
+        "buyers": sorted({t["insider"] for t in buys}),
+        "sell_count": len(sells),
+        "sell_value": sum(t["value"] for t in sells),
+        "planned_sell_count": len(sells) - len(discretionary),
+        "discretionary_sell_value": sum(t["value"] for t in discretionary),
+        "routine_count": len(trades) - len(buys) - len(sells),
+        "open_market": sorted(buys + sells, key=lambda t: t["date"], reverse=True),
+        "what_this_means": (
+            "Insiders sell for many reasons (tax, diversification, a house) but buy on the open "
+            "market with their own money for one. Purchases, especially several insiders at once "
+            "or by the CEO or CFO, are the signal worth noticing. Sales under a pre-arranged "
+            "10b5-1 plan say little; awards, option exercises and tax withholding are routine."
+        ),
+    }
+
+
 def build_brief(provider, ticker: str, reference_wacc: float) -> dict:
     """Aggregate all panels into a single brief dict."""
     return {
