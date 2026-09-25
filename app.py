@@ -163,8 +163,17 @@ else:
     upside = res.equity_value_per_share / price - 1 if price else float("nan")
     buy_zone = res.equity_value_per_share * (1.0 - assumptions.margin_of_safety)
 
+    if res.equity_value_per_share <= 0:
+        st.warning(
+            "Debt exceeds the value of the operations on these assumptions, so the equity "
+            "is worth nothing today (shareholders can't lose more than they put in). "
+            "Any value left is option value on a recovery; check the assumptions first."
+        )
+        buy_zone = 0.0
+        upside = -1.0
+
     m1, m2, m3, m4 = st.columns(4)
-    m1.metric("Est. fair value / share", fmt_money(res.equity_value_per_share, ccy))
+    m1.metric("Est. fair value / share", fmt_money(max(res.equity_value_per_share, 0.0), ccy))
     m2.metric("Upside / downside vs price", fmt_pct(upside))
     m3.metric("Buy zone (≤)", fmt_money(buy_zone, ccy))
     m4.metric("Terminal value % of EV", fmt_pct(res.terminal_share_of_ev))
@@ -262,7 +271,7 @@ if run is not None:
     st.write(
         f"Required margin of safety: **{mos:.0%}** → you'd want to pay no more than "
         f"**{fmt_money(buy_zone, ccy)}** for a value estimate of "
-        f"{fmt_money(run.result.equity_value_per_share, ccy)}."
+        f"{fmt_money(max(run.result.equity_value_per_share, 0.0), ccy)}."
     )
     if price <= buy_zone:
         st.success(f"Current price {fmt_money(price, ccy)} is at or below the buy zone.")

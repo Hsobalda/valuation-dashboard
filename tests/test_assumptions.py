@@ -18,7 +18,8 @@ def _seed(ebit_margin: float = 0.20) -> dict:
         "fade_years": 10,
         "terminal_growth": 0.025,
         "discount_rate": 0.08,
-        "margin_of_safety": 0.25,
+        "uncertainty": "Medium",
+        "uncertainty_mos": {"Low": 0.20, "Medium": 0.30, "High": 0.40, "Very high": 0.50},
         "provenance": {"fade_years": "test fixture"},
     }
 

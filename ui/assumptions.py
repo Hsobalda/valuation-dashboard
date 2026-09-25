@@ -41,15 +41,15 @@ def render_assumption_panel(seed: dict, ticker: str) -> Assumptions:
     col1, col2, col3 = st.columns(3)
     with col1:
         revenue_growth = _pct_slider(
-            "Revenue growth / yr", 0.0, 25.0, seed["revenue_growth"], 0.25,
+            "Revenue growth / yr", -10.0, 30.0, seed["revenue_growth"], 0.25,
             key=f"{ticker}:revenue_growth", help=prov.get("revenue_growth"),
         )
         ebit_margin = _pct_slider(
-            "EBIT margin", 0.0, 75.0, seed["ebit_margin"], 0.25,
+            "EBIT margin", -30.0, 75.0, seed["ebit_margin"], 0.25,
             key=f"{ticker}:ebit_margin", help=prov.get("ebit_margin"),
         )
         target_margin = _pct_slider(
-            "Target EBIT margin (year 5)", 0.0, 75.0, seed["target_ebit_margin"], 0.25,
+            "Target EBIT margin (year 5)", -30.0, 75.0, seed["target_ebit_margin"], 0.25,
             key=f"{ticker}:target_ebit_margin", help=prov.get("target_ebit_margin"),
         )
     with col2:
@@ -84,10 +84,14 @@ def render_assumption_panel(seed: dict, ticker: str) -> Assumptions:
                 f"{ref['equity_risk_premium']:.1%}) · cost of debt {ref['cost_of_debt']:.1%}"
             )
 
-    margin_of_safety = _pct_slider(
-        "Required margin of safety", 0.0, 60.0, seed["margin_of_safety"], 1.0,
-        key=f"{ticker}:margin_of_safety", help=prov.get("margin_of_safety"),
-    )
+    mos_by_rating = seed["uncertainty_mos"]
+    rating = st.segmented_control(
+        "Uncertainty → required margin of safety", list(mos_by_rating),
+        default=seed["uncertainty"], key=f"{ticker}:uncertainty",
+        format_func=lambda r: f"{r} ({mos_by_rating[r]:.0%})",
+        help="Starting rating from the evidence: " + prov.get("uncertainty", ""),
+    ) or seed["uncertainty"]
+    margin_of_safety = mos_by_rating[rating]
 
     return Assumptions(
         revenue_growth=revenue_growth,
