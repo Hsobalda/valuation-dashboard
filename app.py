@@ -97,6 +97,18 @@ with st.expander("C. How good is it? (quality / moat)", expanded=True):
     )
     st.caption("Decision this feeds: " + q["decision"] + " · " + q["what_this_means"])
 
+with st.expander("D. How does it use its cash? (capital allocation)", expanded=True):
+    d = brief["capital_allocation"]
+    st.plotly_chart(charts.capital_allocation_chart(d, info.get("currency", "")), width="stretch")
+    st.caption(
+        f"Returned to shareholders: {fmt_pct(d['payout_of_fcf'])} of free cash flow · "
+        f"diluted share count {fmt_pct(d['share_cagr'])} a year · net debt "
+        f"{d['net_debt_start'] / 1e9:,.1f}bn → {d['net_debt_end'] / 1e9:,.1f}bn"
+    )
+    for flag in d["flags"]:
+        st.warning(flag, icon=":material/flag:")
+    st.caption("Decision this feeds: " + d["decision"] + " · " + d["what_this_means"])
+
 with st.expander("E. What could go wrong? (risk)", expanded=True):
     r = brief["risk"]
     st.caption(

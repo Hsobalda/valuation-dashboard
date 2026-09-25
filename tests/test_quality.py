@@ -62,3 +62,40 @@ def test_dcf_not_applied_to_banks_and_insurers():
     assert dcf_applicable("Credit Services")  # Visa/Mastercard: fee businesses
     assert dcf_applicable("Consumer Electronics")
     assert dcf_applicable("")
+
+
+class _CapStub:
+    def __init__(self, fcf, dividends, buybacks, shares=None):
+        import pandas as pd
+
+        idx = list(range(2021, 2021 + len(fcf)))
+        self.cf = pd.DataFrame({"operating_cash_flow": fcf, "capital_expenditure": [0.0] * len(fcf),
+                                "dividends_paid": dividends, "stock_buybacks": buybacks}, index=idx)
+        self.inc = pd.DataFrame({"shares_diluted_avg": shares} if shares else {}, index=idx)
+        self.bal = pd.DataFrame({"total_debt": [10.0] * len(fcf), "cash_and_equiv": [5.0] * len(fcf)}, index=idx)
+
+    def income_statement(self, t):
+        return self.inc
+
+    def balance_sheet(self, t):
+        return self.bal
+
+    def cash_flow(self, t):
+        return self.cf
+
+
+def test_capital_allocation_payout_and_buyback_shrinkage():
+    from brief import panel_capital_allocation
+
+    d = panel_capital_allocation(_CapStub([100.0, 100.0], [30.0, 30.0], [50.0, 50.0], [100.0, 95.0]), "X")
+    assert d["payout_of_fcf"] == pytest.approx(0.8)
+    assert d["share_cagr"] == pytest.approx(-0.05)
+    assert d["flags"] == []
+
+
+def test_capital_allocation_flags_overpayment_and_dilution():
+    from brief import panel_capital_allocation
+
+    d = panel_capital_allocation(_CapStub([100.0, 100.0], [80.0, 80.0], [40.0, 40.0], [100.0, 104.0]), "X")
+    assert d["payout_of_fcf"] == pytest.approx(1.2)
+    assert len(d["flags"]) == 2

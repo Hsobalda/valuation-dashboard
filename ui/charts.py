@@ -77,6 +77,26 @@ def sensitivity_heatmap(df) -> go.Figure:
     return fig
 
 
+def capital_allocation_chart(brief_cap: dict, currency: str) -> go.Figure:
+    """Free cash flow beside dividends + buybacks (stacked), per fiscal year."""
+    fcf, div, buy = brief_cap["fcf"], brief_cap["dividends"], brief_cap["buybacks"]
+    scale, unit = (1e9, "bn") if fcf.abs().max() >= 1e9 else (1e6, "m")
+    years = [str(y) for y in fcf.index]
+    hover = "%{x} · %{fullData.name}: %{y:,.1f}" + unit + "<extra></extra>"
+    fig = go.Figure()
+    fig.add_trace(go.Bar(x=years, y=fcf / scale, name="Free cash flow",
+                         offsetgroup="fcf", marker_color="#2a78d6", hovertemplate=hover))
+    fig.add_trace(go.Bar(x=years, y=div / scale, name="Dividends",
+                         offsetgroup="returned", marker_color="#eb6834", hovertemplate=hover))
+    fig.add_trace(go.Bar(x=years, y=buy / scale, name="Buybacks", base=div / scale,
+                         offsetgroup="returned", marker_color="#1baf7a", hovertemplate=hover))
+    fig.update_traces(marker_line_color="white", marker_line_width=2)
+    fig.update_layout(**_base_layout("D. Free cash flow vs cash returned to shareholders"),
+                      barmode="group", bargap=0.3, yaxis_title=f"{currency} {unit}",
+                      legend=dict(orientation="h", y=-0.2))
+    return fig
+
+
 def football_field(ranges: dict[str, tuple[float, float]], price: float,
                    mos_price: float | None, currency: str = "USD") -> go.Figure:
     """Horizontal valuation ranges vs current price and buy-zone line."""

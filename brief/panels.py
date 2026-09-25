@@ -192,6 +192,58 @@ def panel_quality(provider, ticker: str, reference_wacc: float) -> dict:
     }
 
 
+def panel_capital_allocation(provider, ticker: str) -> dict:
+    inc = provider.income_statement(ticker)
+    bal = provider.balance_sheet(ticker)
+    cf = provider.cash_flow(ticker)
+
+    # yfinance often returns an all-NaN earliest year; drop years without cash flow data
+    fcf = _fcf(cf).dropna()
+    dividends = _col(cf, "dividends_paid").reindex(fcf.index).fillna(0.0)
+    buybacks = _col(cf, "stock_buybacks").reindex(fcf.index).fillna(0.0)
+    total_fcf = float(fcf.sum())
+    total_returned = float((dividends + buybacks).sum())
+    payout = total_returned / total_fcf if total_fcf > 0 else float("nan")
+
+    shares = _col(inc, "shares_diluted_avg").replace(0, pd.NA).dropna().astype(float)
+    share_cagr = _cagr(shares)
+
+    net_debt = (_col(bal, "total_debt") - _col(bal, "cash_and_equiv")
+                - _col(bal, "short_term_investments")).dropna()
+    nd_start = float(net_debt.iloc[0]) if net_debt.size else float("nan")
+    nd_end = float(net_debt.iloc[-1]) if net_debt.size else float("nan")
+
+    flags = []
+    if payout == payout and payout > 1.0:
+        flags.append(
+            f"Returned {payout:.0%} of free cash flow over {fcf.size} years; the excess "
+            "came from cash or borrowing"
+        )
+    if total_fcf <= 0 and total_returned > 0:
+        flags.append("Paying dividends/buybacks while cumulative free cash flow is negative")
+    if share_cagr == share_cagr and share_cagr > 0.01:
+        flags.append(f"Diluted share count growing {share_cagr:.1%} a year (dilution)")
+
+    return {
+        "title": "D. How does it use its cash?",
+        "decision": "trust in management (margin of safety)",
+        "fcf": fcf,
+        "dividends": dividends,
+        "buybacks": buybacks,
+        "payout_of_fcf": payout,
+        "share_cagr": share_cagr,
+        "net_debt_start": nd_start,
+        "net_debt_end": nd_end,
+        "flags": flags,
+        "what_this_means": (
+            "Value in the DCF only reaches shareholders if management spends the "
+            "cash well. Steady buybacks shrinking the share count and payouts "
+            "covered by free cash flow are good signs; payouts funded by new debt, "
+            "or a rising share count, mean value is leaking."
+        ),
+    }
+
+
 def panel_risk(provider, ticker: str) -> dict:
     inc = provider.income_statement(ticker)
     bal = provider.balance_sheet(ticker)
@@ -288,6 +340,7 @@ def build_brief(provider, ticker: str, reference_wacc: float) -> dict:
         "business": panel_business(provider, ticker),
         "history": panel_history(provider, ticker),
         "quality": panel_quality(provider, ticker, reference_wacc),
+        "capital_allocation": panel_capital_allocation(provider, ticker),
         "risk": panel_risk(provider, ticker),
         "priced_in": panel_priced_in(provider, ticker),
     }
