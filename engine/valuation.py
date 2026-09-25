@@ -21,10 +21,7 @@ class Assumptions:
     ebit_margin: float = 0.20
     target_ebit_margin: float | None = None  # None: margin stays at ebit_margin
     tax_rate: float = 0.21
-    da_pct_revenue: float = 0.05
-    capex_pct_revenue: float = 0.05
-    nwc_pct_revenue: float = 0.0
-    roic: float = 0.15  # today's return on invested capital, faded over fade_years
+    roic: float = 0.15  # return on capital: sets reinvestment, fades over fade_years
     fade_years: int = 10
     terminal_growth: float = 0.025
     discount_rate: float = 0.10
@@ -45,9 +42,7 @@ def _projection(base_revenue: float, a: Assumptions) -> Projection:
         revenue_growth=a.revenue_growth,
         ebit_margin=a.ebit_margin,
         tax_rate=a.tax_rate,
-        da_pct_revenue=a.da_pct_revenue,
-        capex_pct_revenue=a.capex_pct_revenue,
-        nwc_pct_revenue=a.nwc_pct_revenue,
+        roic=a.roic,
         years=a.years,
         target_margin=a.target_ebit_margin,
     )

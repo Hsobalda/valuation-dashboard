@@ -52,26 +52,13 @@ def render_assumption_panel(seed: dict, ticker: str) -> Assumptions:
             "Target EBIT margin (year 5)", 0.0, 75.0, seed["target_ebit_margin"], 0.25,
             key=f"{ticker}:target_ebit_margin", help=prov.get("target_ebit_margin"),
         )
+    with col2:
         tax_rate = _pct_slider(
             "Tax rate", 0.0, 40.0, seed["tax_rate"], 0.25,
             key=f"{ticker}:tax_rate", help=prov.get("tax_rate"),
         )
-    with col2:
-        da_pct = _pct_slider(
-            "D&A % of revenue", 0.0, 20.0, seed["da_pct_revenue"], 0.25,
-            key=f"{ticker}:da_pct_revenue", help=prov.get("da_pct_revenue"),
-        )
-        capex_pct = _pct_slider(
-            "Capex % of revenue", 0.0, 30.0, seed["capex_pct_revenue"], 0.25,
-            key=f"{ticker}:capex_pct_revenue", help=prov.get("capex_pct_revenue"),
-        )
-        nwc_pct = _pct_slider(
-            "Δ net working capital % of revenue", 0.0, 15.0, seed["nwc_pct_revenue"], 0.25,
-            key=f"{ticker}:nwc_pct_revenue", help=prov.get("nwc_pct_revenue"),
-        )
-    with col3:
         roic = _pct_slider(
-            "ROIC today", 1.0, 100.0, seed["roic"], 0.5,
+            "ROIC (return on new capital)", 1.0, 100.0, seed["roic"], 0.5,
             key=f"{ticker}:roic", help=prov.get("roic"),
         )
         fade_years = st.select_slider(
@@ -80,6 +67,7 @@ def render_assumption_panel(seed: dict, ticker: str) -> Assumptions:
             help=prov.get("fade_years") + " · 5 = none, 10 = narrow, 20 = wide. Over this "
                  "period growth fades to terminal growth and ROIC fades to the discount rate.",
         )
+    with col3:
         terminal_growth = _pct_slider(
             "Terminal growth / yr", 0.0, 5.0, seed["terminal_growth"], 0.1,
             key=f"{ticker}:terminal_growth", help=prov.get("terminal_growth"),
@@ -107,9 +95,6 @@ def render_assumption_panel(seed: dict, ticker: str) -> Assumptions:
         target_ebit_margin=target_margin,
         roic=roic,
         tax_rate=tax_rate,
-        da_pct_revenue=da_pct,
-        capex_pct_revenue=capex_pct,
-        nwc_pct_revenue=nwc_pct,
         fade_years=fade_years,
         terminal_growth=terminal_growth,
         discount_rate=discount_rate,

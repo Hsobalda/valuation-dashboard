@@ -10,9 +10,10 @@ import streamlit as st
 import pandas as pd
 
 from data import MultiProvider, sample_tickers
-from brief import build_brief, dcf_applicable, derive_starting_assumptions
+from brief import build_brief, dcf_applicable, derive_starting_assumptions, reinvestment_history
 from engine import comps_analysis, implied_revenue_growth, run_valuation
 from ui import charts
+from ui.tables import projection_table, reinvestment_history_table
 from ui.assumptions import render_assumption_panel
 
 st.set_page_config(page_title="Valuation Dashboard", layout="wide")
@@ -172,11 +173,19 @@ else:
         price, metrics["revenue"], assumptions, net_debt=metrics["net_debt"],
         minority_interest=metrics["minority_interest"], shares_diluted=metrics["shares_diluted"],
     )
-    if implied is None:
+    if implied is None and assumptions.roic <= assumptions.discount_rate:
+        st.markdown(
+            f"**Reverse DCF:** no growth rate justifies {fmt_money(price, ccy)}. With ROIC "
+            f"({assumptions.roic:.1%}) at or below your discount rate "
+            f"({assumptions.discount_rate:.1%}), each unit of growth costs more than it "
+            "earns, so faster growth lowers value. The market is either expecting higher "
+            "returns on capital or accepting a lower return than you require."
+        )
+    elif implied is None:
         st.markdown(
             "**Reverse DCF:** no growth rate between −10% and 40% a year justifies the "
             "current price with your other assumptions, so the gap is in margins, "
-            "reinvestment or the discount rate rather than growth."
+            "returns on capital or the discount rate rather than growth."
         )
     else:
         st.markdown(
@@ -192,6 +201,24 @@ else:
         )
 
     st.plotly_chart(charts.sensitivity_heatmap(run.sensitivity), width="stretch")
+
+    st.markdown("#### Stage 1 projection")
+    st.dataframe(projection_table(run.projection, assumptions.revenue_growth, ccy), width="stretch")
+    st.caption(
+        f"Reinvestment = NOPAT × growth ÷ ROIC ({assumptions.revenue_growth:.1%} ÷ "
+        f"{assumptions.roic:.1%}): the net capex and working capital needed to grow at "
+        f"{assumptions.revenue_growth:.1%} if new capital earns {assumptions.roic:.1%}."
+    )
+    hist = reinvestment_history(provider, ticker)
+    if not hist.empty:
+        st.markdown("#### What it has actually reinvested")
+        st.dataframe(reinvestment_history_table(hist, ccy), width="stretch")
+        st.caption(
+            "Net capex = capex − D&A: spending beyond replacing worn-out assets. It "
+            "excludes working capital and acquisitions, so it understates total "
+            "reinvestment. Under IFRS 16, D&A includes depreciation on leased assets "
+            "that capex doesn't, which can make net capex look negative."
+        )
 
 # --- 5. comps + football field ---------------------------------------------
 

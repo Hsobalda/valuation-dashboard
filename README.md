@@ -14,8 +14,11 @@ the user can see where every input came from before changing it.
 - Research brief: business overview, financial history, quality indicators, capital
   allocation (free cash flow vs dividends and buybacks, share count trend), risk,
   and the current P/E, EV/EBITDA, EV/Revenue and P/B.
-- Assumption panel: growth, margins, reinvestment, discount rate, terminal growth and fade
-  period, each labelled with its source (e.g. "FY2024 operating margin").
+- Assumption panel: growth, current and target margin, return on capital, discount rate,
+  terminal growth and fade period, each labelled with its source (e.g. "FY2024
+  operating margin").
+- Stage 1 projection table (revenue, margin, NOPAT, reinvestment, free cash flow)
+  beside the company's actual capex, D&A and net capex history.
 - Three-stage DCF with a discount rate × terminal growth sensitivity table, and a warning
   when terminal value makes up most of the valuation.
 - Reverse DCF: the revenue growth the current share price implies, given the other
@@ -29,10 +32,15 @@ the user can see where every input came from before changing it.
 
 ## Methodology
 
-Unlevered free cash flow is projected from revenue growth, EBIT margin, tax rate,
-D&A, capex and working capital:
+Growth has to be paid for. A company growing at g, earning a return of ROIC on
+new capital, must reinvest g / ROIC of its after-tax operating profit (NOPAT) in
+net capex and working capital, so
 
-    FCFF = EBIT × (1 − t) + D&A − capex − ΔNWC
+    FCFF = NOPAT × (1 − g / ROIC)
+
+The same rule runs through every stage, so the model can't assume growth for
+free. NOPAT comes from revenue growth and an EBIT margin that moves from its
+latest level to a target (seeded with the historical average) over five years.
 
 Cash flows are discounted at a fixed 10% required return rather than each
 company's WACC. A WACC measures what capital costs the company; the discount
@@ -44,13 +52,16 @@ market-value weights) and used as the hurdle in the ROIC comparison.
 
 | Stage | Period | Treatment |
 |---|---|---|
-| 1 | Years 1–n | Explicit FCFF projections |
-| 2 | Fade period | Growth declines linearly from the Stage 1 exit rate to terminal growth |
-| 3 | Terminal | Gordon Growth on the final fade-year cash flow |
+| 1 | Years 1–5 | Explicit projection at today's ROIC |
+| 2 | Fade period | Growth declines linearly to terminal growth; ROIC declines linearly to the discount rate |
+| 3 | Terminal | Value driver formula: NOPAT × (1 − g / RONIC) / (r − g), with RONIC = r |
 
 The length of Stage 2 reflects competitive advantage: roughly 5 years for a company
 with no moat, 10 for a narrow moat and 20 for a wide one, following the approach
-Morningstar uses. Enterprise value less net debt and minority interest gives
+Morningstar uses. In the terminal stage new investment earns exactly the required
+return, so the terminal value reduces to NOPAT / r and terminal growth adds
+almost no value: competition is assumed to have eroded excess returns by then.
+A company whose ROIC is below the discount rate destroys value by growing. Enterprise value less net debt and minority interest gives
 equity value, which is divided by diluted shares (current shares outstanding
 scaled by the latest year's diluted/basic ratio).
 

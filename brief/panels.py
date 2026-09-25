@@ -159,6 +159,28 @@ def roic_history(provider, ticker: str) -> pd.Series:
     return roic_series(nopat, _invested_capital(provider.balance_sheet(ticker)))
 
 
+def reinvestment_history(provider, ticker: str) -> pd.DataFrame:
+    """Historical capex, D&A and net capex against NOPAT, by fiscal year.
+
+    Net capex (capex - D&A) is what the company spent beyond replacing worn-out
+    assets; it excludes working capital and acquisitions, which the model's
+    reinvestment line includes.
+    """
+    inc = provider.income_statement(ticker)
+    nopat = _col(inc, "operating_income") * (1.0 - _effective_tax_rate(inc))
+    capex = _col(provider.cash_flow(ticker), "capital_expenditure")
+    capex, da = capex.align(_col(inc, "depreciation_amortization"), join="inner")
+    df = pd.DataFrame({
+        "revenue_growth": _col(inc, "revenue").pct_change(),
+        "nopat": nopat,
+        "capex": capex,
+        "da": da,
+    }).loc[capex.index].dropna(subset=["capex"])
+    df["net_capex"] = df["capex"] - df["da"]
+    df["net_capex_pct_nopat"] = df["net_capex"] / df["nopat"].where(df["nopat"] > 0)
+    return df
+
+
 def panel_quality(provider, ticker: str, reference_wacc: float) -> dict:
     inc = provider.income_statement(ticker)
     bal = provider.balance_sheet(ticker)

@@ -32,4 +32,4 @@ def test_seeds_tolerate_missing_columns():
     p = SparseProvider()
     s = derive_starting_assumptions(p, "AAPL")
     assert s["tax_rate"] == 0.21  # falls back to default when pretax absent
-    assert s["da_pct_revenue"] == 0.0
+    assert 0.01 <= s["roic"] <= 1.0

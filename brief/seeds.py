@@ -27,8 +27,6 @@ def _latest(df, field):
 
 def derive_starting_assumptions(provider, ticker: str) -> dict:
     inc = provider.income_statement(ticker)
-    bal = provider.balance_sheet(ticker)
-    cf = provider.cash_flow(ticker)
 
     revenue = inc["revenue"].dropna()
     latest_rev = float(revenue.iloc[-1]) if revenue.size else 0.0
@@ -47,8 +45,6 @@ def derive_starting_assumptions(provider, ticker: str) -> dict:
 
     roic_hist = roic_history(provider, ticker).dropna()
     roic = min(max(float(roic_hist.mean()), 0.01), 1.0) if roic_hist.size else DISCOUNT_RATE
-    da_pct = _latest(inc, "depreciation_amortization") / latest_rev if latest_rev else 0.0
-    capex_pct = _latest(cf, "capital_expenditure") / latest_rev if latest_rev else 0.0
 
     # effective tax rate (latest year)
     pretax = _latest(inc, "pretax_income")
@@ -62,9 +58,6 @@ def derive_starting_assumptions(provider, ticker: str) -> dict:
         "ebit_margin": ebit_margin,
         "target_ebit_margin": target_margin,
         "tax_rate": tax_rate,
-        "da_pct_revenue": da_pct,
-        "capex_pct_revenue": capex_pct,
-        "nwc_pct_revenue": 0.0,  # not derivable from this schema; analyst sets it
         "roic": roic,
         "fade_years": 10,
         "terminal_growth": 0.025,
@@ -81,13 +74,11 @@ def derive_starting_assumptions(provider, ticker: str) -> dict:
             ),
             "roic": (
                 f"average ROIC FY{roic_hist.index[0]}-{roic_hist.index[-1]} (Panel C); "
+                "sets what growth costs (reinvestment = growth / ROIC) and "
                 "fades to the discount rate over the fade period"
                 if roic_hist.size else "no ROIC history: set to the discount rate (no excess returns)"
             ),
             "tax_rate": f"FY{revenue.index[-1]} effective tax rate",
-            "da_pct_revenue": f"FY{revenue.index[-1]} D&A / revenue",
-            "capex_pct_revenue": f"FY{revenue.index[-1]} capex / revenue",
-            "nwc_pct_revenue": "not derived (no working-capital data) -- set if relevant",
             "fade_years": "default -- set from the moat evidence in Panel C",
             "terminal_growth": "default -- long-run GDP/inflation, 2-3%",
             "discount_rate": (

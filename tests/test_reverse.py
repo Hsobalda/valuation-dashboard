@@ -5,8 +5,8 @@ import pytest
 from engine.reverse import implied_revenue_growth
 from engine.valuation import Assumptions, value_per_share
 
-A = Assumptions(revenue_growth=0.05, ebit_margin=0.20, tax_rate=0.21, da_pct_revenue=0.05,
-                capex_pct_revenue=0.05, roic=0.25, fade_years=10, terminal_growth=0.025, discount_rate=0.10)
+A = Assumptions(revenue_growth=0.05, ebit_margin=0.20, tax_rate=0.21,
+                roic=0.25, fade_years=10, terminal_growth=0.025, discount_rate=0.10)
 BRIDGE = dict(net_debt=100.0, minority_interest=0.0, shares_diluted=10.0)
 
 
