@@ -42,7 +42,6 @@ The app runs top to bottom in seven sections.
 6. Valuation journal: save a valuation with a Buy / Watch / Pass decision and a
    thesis, then track the return since each call and a scorecard by decision. Kept
    locally in `journal/` (git-ignored), as a record against hindsight bias.
-
 7. Portfolio sizing: a core index fund plus your journaled Buy/Watch calls,
    sized by risk rather than money. Each stock gets a standalone risk budget
    (e.g. 1% of the portfolio) scaled by conviction (expected return above your
