@@ -12,7 +12,7 @@ source, before you change it.
 
 ## Features
 
-The app runs top to bottom in six sections.
+The app runs top to bottom in seven sections.
 
 1. Research brief: business overview; revenue, margin and cash-flow history;
    ROIC against the company's WACC; capital allocation (free cash flow after stock
@@ -42,6 +42,15 @@ The app runs top to bottom in six sections.
 6. Valuation journal: save a valuation with a Buy / Watch / Pass decision and a
    thesis, then track the return since each call and a scorecard by decision. Kept
    locally in `journal/` (git-ignored), as a record against hindsight bias.
+
+7. Portfolio sizing: a core index fund plus your journaled Buy/Watch calls,
+   sized by risk rather than money. Each stock gets a standalone risk budget
+   (e.g. 1% of the portfolio) scaled by conviction (expected return above your
+   required return, and the uncertainty rating), divided by its volatility, then
+   capped per stock, per sector and for the satellite as a whole. Volatility and
+   correlation come from three years of weekly prices, so each holding's share of
+   portfolio risk reflects how it moves with the core. Expected returns only tilt
+   the sizes, because they are the least reliable input.
 
 The Excel export rebuilds the base-case DCF from live formulas (inputs in blue,
 each with its source), so it can be audited and changed in Excel; a test

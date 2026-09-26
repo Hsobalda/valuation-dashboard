@@ -22,6 +22,7 @@ from ui.tables import projection_table, reinvestment_history_table
 from ui.assumptions import render_assumption_panel
 from ui.excel_export import build_dcf_workbook
 from ui.journal import render_history, render_save_form
+from ui.portfolio import render_portfolio
 
 st.set_page_config(page_title="Valuation Dashboard", layout="wide")
 
@@ -549,6 +550,19 @@ if run is not None:
                 ("SEC filings + Yahoo" if provider.uses_sec_filings(ticker) else "Yahoo"),
     })
 render_history(provider, ticker)
+
+# --- 7. portfolio sizing -----------------------------------------------------
+
+st.markdown("### 7. Portfolio sizing")
+if st.toggle("Size a portfolio", key="pf:on",
+             help="Core index fund plus your journaled Buy/Watch calls, sized by risk and conviction"):
+    render_portfolio(provider, None if run is None else {
+        "ticker": ticker,
+        "expected_return": expected,
+        "uncertainty": next((r for r, m in seed["uncertainty_mos"].items()
+                             if m == assumptions.margin_of_safety), "Medium"),
+        "hurdle": assumptions.hurdle_rate,
+    })
 
 st.markdown("---")
 st.caption(

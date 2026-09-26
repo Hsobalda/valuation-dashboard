@@ -139,6 +139,17 @@ def load_insider_trades(ticker: str) -> list[dict] | None:
 
 
 @cache_data(ttl=86400)
+def load_weekly_closes(ticker: str) -> pd.Series | None:
+    if not _live_available():
+        return None
+    try:
+        closes = YFinanceProvider().weekly_closes(ticker)
+        return closes if len(closes) >= 52 else None
+    except Exception:
+        return None
+
+
+@cache_data(ttl=86400)
 def load_peer_profile(ticker: str) -> dict | None:
     if _live_available():
         try:
@@ -196,6 +207,9 @@ class MultiProvider:
 
     def insider_trades(self, ticker: str) -> list[dict] | None:
         return load_insider_trades(ticker) if self.source(ticker) == "live" else None
+
+    def weekly_closes(self, ticker: str) -> pd.Series | None:
+        return load_weekly_closes(ticker)
 
     def peer_profiles(self, tickers: list[str]) -> list[dict]:
         return [p for p in (load_peer_profile(t) for t in tickers) if p]

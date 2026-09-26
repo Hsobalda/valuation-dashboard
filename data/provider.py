@@ -368,6 +368,13 @@ class YFinanceProvider:
             "currency_mismatch": fin != cur and is_foreign_us_listing(info.get("country", ""), cur),
         }
 
+    def weekly_closes(self, ticker: str, period: str = "3y") -> pd.Series:
+        """Weekly closing prices, dated by week start (timezone dropped so listings
+        on different exchanges line up)."""
+        closes = self._ticker(ticker).history(period=period, interval="1wk")["Close"].dropna()
+        closes.index = closes.index.tz_localize(None).normalize()
+        return closes
+
     def consensus(self, ticker: str) -> dict:
         """Analyst consensus revenue for the current and next fiscal year."""
         est = self._ticker(ticker).revenue_estimate
