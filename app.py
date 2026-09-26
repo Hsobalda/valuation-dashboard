@@ -165,6 +165,8 @@ with st.expander("F. What's already priced in?", expanded=True):
         "P/E": [f["pe"]], "EV/EBITDA": [f["ev_ebitda"]],
         "EV/Revenue": [f["ev_revenue"]], "P/B": [f["pb"]],
     }), width="stretch")
+    if f["note"]:
+        st.warning(f["note"], icon=":material/currency_exchange:")
     st.caption("Decision this feeds: " + f["decision"] + " · " + f["what_this_means"])
 
 with st.expander("G. What are insiders doing? (SEC Form 4, last 6 months)", expanded=True):

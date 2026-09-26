@@ -400,6 +400,18 @@ def panel_priced_in(provider, ticker: str) -> dict:
     ev_ebitda = ev / m["ebitda"] if m["ebitda"] else float("nan")
     ev_rev = ev / m["revenue"] if m["revenue"] else float("nan")
     pb = price / m["bvps"] if m["bvps"] else float("nan")
+    note = ""
+    if m.get("currency_mismatch"):
+        # price in one currency, accounts in another (e.g. JD: USD price, CNY
+        # earnings): dividing one by the other gave JD a fake 2x P/E. Use Yahoo's
+        # own ratios where it reports them; EV multiples can't be built reliably.
+        mkt = provider.market_data(ticker)
+        pe = mkt.get("pe_trailing_reported") or float("nan")
+        pb = mkt.get("pb_reported") or float("nan")
+        ev_ebitda = ev_rev = float("nan")
+        note = (f"Price is in {info.get('currency')} but the accounts are in "
+                f"{info.get('financial_currency')}, so these are Yahoo's own ratios "
+                "(adjusted for currency and ADR ratio); EV multiples are left out.")
 
     return {
         "title": "F. What's already priced in?",
@@ -410,6 +422,7 @@ def panel_priced_in(provider, ticker: str) -> dict:
         "ev_ebitda": ev_ebitda,
         "ev_revenue": ev_rev,
         "pb": pb,
+        "note": note,
         "what_this_means": (
             "The market is always pricing in *some* forecast. Compare these "
             "multiples to the peers below and ask: is the premium/discount "

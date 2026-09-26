@@ -341,6 +341,12 @@ class YFinanceProvider:
             "target_low": float(info.get("targetLowPrice") or 0.0) / unit,
             "target_high": float(info.get("targetHighPrice") or 0.0) / unit,
             "analyst_count": int(info.get("numberOfAnalystOpinions") or 0),
+            # Yahoo's own ratios, computed in one consistent currency and ADR basis:
+            # the only trustworthy multiples for a listing whose price and accounts
+            # are in different currencies
+            "pe_trailing_reported": float(info.get("trailingPE") or 0.0),
+            "pe_forward_reported": float(info.get("forwardPE") or 0.0),
+            "pb_reported": float(info.get("priceToBook") or 0.0),
             "market_cap": float(info.get("marketCap") or 0.0),
             "shares_outstanding": float(info.get("sharesOutstanding") or 0.0),
         }

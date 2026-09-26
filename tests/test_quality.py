@@ -187,3 +187,24 @@ def test_net_debt_and_roic_survive_a_field_dropping_out_of_later_filings():
 
     roic = roic_history(_Stub(), "X")
     assert not roic.isna().any()
+
+
+def test_priced_in_does_not_divide_dollar_price_by_yuan_earnings():
+    from brief import build_brief  # noqa: F401  (import check)
+    from brief.panels import panel_priced_in
+
+    class _ADR:
+        def fundamental_metrics(self, t):
+            return {"price": 26.5, "eps": 12.9, "bvps": 166.6, "market_cap": 35.8e9, "net_debt": -106e9,
+                    "minority_interest": 0.0, "ebitda": 50e9, "revenue": 1309e9, "currency_mismatch": True}
+
+        def company_info(self, t):
+            return {"currency": "USD", "financial_currency": "CNY"}
+
+        def market_data(self, t):
+            return {"pe_trailing_reported": 17.7, "pb_reported": 1.08}
+
+    f = panel_priced_in(_ADR(), "JD")
+    assert f["pe"] == 17.7 and f["pb"] == 1.08          # not the fake 2.1x / 0.16x
+    assert f["ev_ebitda"] != f["ev_ebitda"]              # NaN: can't be built
+    assert "CNY" in f["note"]
