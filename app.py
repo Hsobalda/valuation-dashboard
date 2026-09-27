@@ -553,12 +553,13 @@ render_history(provider, ticker)
 
 # --- 7. portfolio sizing -----------------------------------------------------
 
-st.markdown("### 7. Portfolio sizing")
-if st.toggle("Size a portfolio", key="pf:on",
-             help="Core index fund plus your journaled Buy/Watch calls, sized by risk and conviction"):
+st.markdown("### 7. Stock pie sizing")
+if st.toggle("Size my stock pie", key="pf:on",
+             help="Your journaled Buy/Watch calls plus this company, sized by conviction and risk"):
     render_portfolio(provider, None if run is None else {
         "ticker": ticker,
         "expected_return": expected,
+        "passes_margin_of_safety": price <= buy_zone,
         "uncertainty": next((r for r, m in seed["uncertainty_mos"].items()
                              if m == assumptions.margin_of_safety), "Medium"),
         "hurdle": assumptions.hurdle_rate,

@@ -1,8 +1,12 @@
-"""Portfolio sizing panel: core index fund plus risk-budgeted satellite stocks."""
+"""Stock-pie sizing panel: about N high-conviction holdings, sized by risk and conviction.
+
+The pie is a separate pot of individual stocks (the index fund, if any, lives
+elsewhere). Candidates are the latest Buy/Watch call per ticker in the journal,
+re-priced at today's price, plus the company on the page, which takes priority
+over its own journal entry since the sliders are the most recent view.
+"""
 
 from __future__ import annotations
-
-import dataclasses
 
 import numpy as np
 import pandas as pd
@@ -10,99 +14,153 @@ import streamlit as st
 
 from brief.seeds import UNCERTAINTY_MOS
 from data.journal import load_entries
-from engine import implied_return
-from engine.sizing import Candidate, portfolio_risk, size_positions
+from engine import implied_return, run_scenarios
+from engine.sizing import Candidate, in_base_currency, portfolio_risk, size_positions
 from engine.valuation import Assumptions
 
-CORE_EXPECTED_RETURN = 0.07  # long-run assumption for a global equity index, for display only
+BASE_CURRENCY = "GBP"
+BENCHMARK_EXPECTED_RETURN = 0.07  # long-run assumption for a global equity index, for comparison only
 
 
 def _rating_for(mos: float) -> str:
     return next((r for r, m in UNCERTAINTY_MOS.items() if abs(m - mos) < 1e-9), "Medium")
 
 
-def _journal_candidates(provider) -> dict[str, dict]:
-    """Latest Buy/Watch call per ticker, re-priced: expected return at today's price
-    from the assumptions saved with the call."""
+def _reprice(provider, ticker: str, a: Assumptions) -> dict:
+    """Both buy tests at today's price, from a set of assumptions."""
+    m = provider.fundamental_metrics(ticker)
+    bridge = (m["net_debt"], m["minority_interest"], m["shares_diluted"], m["years_since_fy_end"])
+    er = implied_return(m["price"], m["revenue"], a, *bridge)
+    buy_zone = run_scenarios(m["revenue"], a, *bridge).weighted_value * (1 - a.margin_of_safety)
+    return {"expected_return": er, "passes_margin_of_safety": m["price"] <= buy_zone,
+            "uncertainty": _rating_for(a.margin_of_safety)}
+
+
+def _journal_candidates(provider) -> tuple[dict[str, dict], list[str]]:
     latest = {e["ticker"]: e for e in load_entries() if e.get("decision") in ("Buy", "Watch")}
-    out = {}
+    pool, failed = {}, []
     for t, e in latest.items():
         saved = {k: v for k, v in e.get("assumptions", {}).items() if k in Assumptions.__dataclass_fields__}
         if saved.get("growth_override") is not None:
             saved["growth_override"] = tuple(saved["growth_override"])
         try:
-            a = Assumptions(**saved)
-            m = provider.fundamental_metrics(t)
-            er = implied_return(m["price"], m["revenue"], a, m["net_debt"], m["minority_interest"],
-                                m["shares_diluted"], m["years_since_fy_end"])
+            pool[t] = {**_reprice(provider, t, Assumptions(**saved)),
+                       "source": f"journal: {e['decision']} on {e['date']}"}
         except Exception:
-            continue
-        out[t] = {"expected_return": er, "uncertainty": _rating_for(e.get("margin_of_safety", 0.3)),
-                  "source": f"journal ({e['decision']}, {e['date']})"}
-    return out
+            failed.append(t)
+    return pool, failed
+
+
+def _base_closes(provider, ticker: str) -> pd.Series | None:
+    """Weekly closes in sterling: a US stock's risk to a UK investor includes the dollar."""
+    closes = provider.weekly_closes(ticker)
+    # the light profile lookup: works for index funds, which have no statements to load
+    profile = (provider.peer_profiles([ticker]) or [{}])[0]
+    ccy = profile.get("currency") or BASE_CURRENCY
+    if closes is None or ccy == BASE_CURRENCY:
+        return closes
+    fx = provider.weekly_closes(f"{ccy}{BASE_CURRENCY}=X")
+    return None if fx is None else in_base_currency(closes, fx)
+
+
+def plan_pie(closes: dict[str, pd.Series], benchmark: str, pool: dict[str, dict], hurdle: float,
+             holdings: int, sector_cap: float) -> dict:
+    """Size the pie from sterling price histories and each candidate's buy-test
+    results. No Streamlit here, so the whole calculation can be tested."""
+    tickers = [t for t in pool if t in closes]
+    returns = pd.DataFrame({t: closes[t] for t in [benchmark, *tickers]}).pct_change(fill_method=None).dropna()
+    vols = returns.std() * np.sqrt(52)
+    cands = [Candidate(t, pool[t]["sector"], pool[t]["expected_return"], pool[t]["uncertainty"],
+                       float(vols[t]), pool[t]["passes_margin_of_safety"]) for t in tickers]
+    sized = size_positions(cands, hurdle, holdings, sector_cap)
+    held = sized[sized["weight"] > 0] if not sized.empty else sized
+    out = {"sized": sized, "vols": vols, "corr": returns.corr()[benchmark], "contrib": pd.Series(dtype=float),
+           "today": pd.Series(dtype=float), "filled": 0.0, "expected": float("nan"),
+           "pie_vol": float("nan"), "pie_corr": float("nan")}
+    if held.empty:
+        return out
+    today = held.set_index("ticker")["weight"] / held["weight"].sum()
+    pie_vol, contrib = portfolio_risk(today, returns)
+    pie_returns = returns[list(today.index)].to_numpy() @ today.to_numpy()
+    return {**out, "today": today, "contrib": contrib, "filled": float(held["weight"].sum()),
+            "expected": float(sum(today[t] * pool[t]["expected_return"] for t in today.index)),
+            "pie_vol": pie_vol, "pie_corr": float(np.corrcoef(pie_returns, returns[benchmark])[0, 1])}
 
 
 def render_portfolio(provider, current: dict | None) -> None:
     c1, c2, c3 = st.columns(3)
-    value = c1.number_input("Portfolio value (£)", min_value=0.0, value=10_000.0, step=500.0, key="pf:value")
-    core = c2.text_input("Core index fund", "VWRL.L", key="pf:core",
-                         help="Vanguard FTSE All-World by default: the diversified base the picks sit on").strip().upper()
+    value = c1.number_input("Planned pie size when full (£)", min_value=0.0, value=5_000.0, step=250.0,
+                            key="pf:value", help="What the pie will hold once it has its target number of "
+                                                 "holdings. Each stock is bought at its planned size of this")
+    holdings = c2.number_input("Target number of holdings", 3, 25, 10, 1, key="pf:holdings",
+                               help="Sets the standard position: 10 holdings = 10% each, before adjustments")
     hurdle = c3.number_input("Required return (%)", 0.0, 30.0,
                              (current or {}).get("hurdle", 0.10) * 100, 0.5, key="pf:hurdle") / 100
-    c4, c5, c6 = st.columns(3)
-    budget = c4.number_input("Risk budget per stock (%)", 0.25, 3.0, 1.0, 0.25, key="pf:budget",
-                             help="Target standalone risk per position, as a share of the portfolio: "
-                                  "weight x volatility. 1% on a 20%-volatility stock = a 5% position") / 100
-    sat_cap = c5.number_input("Satellite cap (%)", 0.0, 50.0, 25.0, 5.0, key="pf:sat") / 100
-    sector_cap = c6.number_input("Sector cap (%)", 0.0, 50.0, 10.0, 1.0, key="pf:sector") / 100
+    c4, c5, _ = st.columns(3)
+    sector_cap = c4.number_input("Sector cap (% of pie)", 10.0, 100.0, 30.0, 5.0, key="pf:sector") / 100
+    benchmark = c5.text_input("Benchmark", "VWRL.L", key="pf:bench",
+                              help="Vanguard FTSE All-World: what the pie has to beat").strip().upper()
 
-    pool = _journal_candidates(provider)
+    pool, failed = _journal_candidates(provider)
     if current and current.get("expected_return") is not None:
-        pool.setdefault(current["ticker"], {**current, "source": "this page (current sliders)"})
+        pool[current["ticker"]] = {**current, "source": "this page (current sliders)"}
+    if failed:
+        st.warning(f"Couldn't re-price journal calls for {', '.join(failed)}; left out.")
     if not pool:
         st.caption("Save Buy or Watch calls in the journal (or value a company above) to size them here.")
         return
 
-    core_closes = provider.weekly_closes(core)
-    closes = {t: provider.weekly_closes(t) for t in pool}
-    missing = [t for t, s in closes.items() if s is None]
-    if core_closes is None or missing:
-        st.warning(f"No usable price history for {', '.join(([core] if core_closes is None else []) + missing)} "
-                   "(needs live data and a year or more of prices).")
-        if core_closes is None:
-            return
-    tickers = [t for t in pool if closes[t] is not None]
-    returns = pd.DataFrame({core: core_closes, **{t: closes[t] for t in tickers}}).pct_change(fill_method=None).dropna()
-    vols = returns.std() * np.sqrt(52)
+    closes = {t: _base_closes(provider, t) for t in [benchmark, *pool]}
+    missing = [t for t, c in closes.items() if c is None]
+    if missing:
+        st.warning(f"No usable price history for {', '.join(missing)} (needs live data and a year of prices).")
+    if closes[benchmark] is None:
+        return
+    sectors = {t: provider.company_info(t).get("sector") or "Unknown" for t in pool}
+    plan = plan_pie({t: c for t, c in closes.items() if c is not None}, benchmark,
+                    {t: {**pool[t], "sector": sectors[t]} for t in pool if closes[t] is not None},
+                    hurdle, int(holdings), sector_cap)
+    sized, today, vols, corr, contrib = plan["sized"], plan["today"], plan["vols"], plan["corr"], plan["contrib"]
+    if sized.empty:
+        st.caption("None of the candidates has enough price history to size.")
+        return
 
-    cands = [Candidate(t, provider.company_info(t).get("sector", "") or "Unknown", pool[t]["expected_return"],
-                       pool[t]["uncertainty"], float(vols[t])) for t in tickers]
-    sized = size_positions(cands, hurdle, budget, sat_cap, sector_cap)
-    weights = pd.Series({core: 1.0 - sized["weight"].sum(), **dict(zip(sized["ticker"], sized["weight"]))})
-    port_vol, contrib = portfolio_risk(weights, returns)
-    corr = returns.corr()[core]
-
-    rows = [{"Holding": core, "Role": "Core", "Expected return": f"{CORE_EXPECTED_RETURN:.1%} (assumed)",
-             "Uncertainty": "—", "Volatility": f"{vols[core]:.1%}", "Corr. with core": "1.00",
-             "Weight": f"{weights[core]:.1%}", "£": f"{weights[core] * value:,.0f}",
-             "Share of risk": f"{contrib[core]:.0%}", "Note": ""}]
-    for _, r in sized.iterrows():
+    rows = []
+    for _, r in sized.sort_values("weight", ascending=False).iterrows():
+        t, er = r["ticker"], r["expected_return"]
         rows.append({
-            "Holding": r["ticker"], "Role": r["sector"],
-            "Expected return": f"{r['expected_return']:.1%}" if r["expected_return"] is not None else "—",
-            "Uncertainty": r["uncertainty"], "Volatility": f"{r['volatility']:.1%}",
-            "Corr. with core": f"{corr[r['ticker']]:.2f}", "Weight": f"{r['weight']:.1%}",
-            "£": f"{r['weight'] * value:,.0f}", "Share of risk": f"{contrib[r['ticker']]:.0%}",
-            "Note": r["limit"] or pool[r["ticker"]]["source"],
+            "Stock": t, "Sector": r["sector"],
+            "Expected return": "—" if er is None else f"{er:.1%}",
+            "Uncertainty": r["uncertainty"],
+            "Buy tests": ("✓" if er is not None and er >= hurdle else "✗") + " return · "
+                         + ("✓" if pool[t]["passes_margin_of_safety"] else "✗") + " safety",
+            "Volatility (£)": f"{r['volatility']:.1%}",
+            "Corr. with benchmark": f"{corr[t]:.2f}",
+            "Planned weight": f"{r['weight']:.1%}",
+            "£ to invest now": f"{r['weight'] * value:,.0f}",
+            "Pie %": f"{today.get(t, 0):.1%}",
+            "Share of pie risk": f"{contrib[t]:.0%}" if t in today.index else "—",
+            "Note": r["limit"] or pool[t]["source"],
         })
     st.dataframe(pd.DataFrame(rows), hide_index=True, width="stretch")
 
-    exp = (weights[core] * CORE_EXPECTED_RETURN
-           + sum(w * (pool[t]["expected_return"] or 0) for t, w in weights.items() if t != core))
+    if today.empty:
+        st.info("Nothing clears your required return at today's prices, so nothing to buy yet.")
+        return
+    filled, expected, pie_vol, pie_corr = plan["filled"], plan["expected"], plan["pie_vol"], plan["pie_corr"]
     st.caption(
-        f"Portfolio volatility {port_vol:.1%} a year (the core alone: {vols[core]:.1%}) · blended expected return "
-        f"~{exp:.1%}. Each stock gets risk budget × conviction ÷ its volatility, then the caps (stock cap by "
-        "uncertainty: Low 5%, Medium 4%, High 2%, Very high 1%). 'Share of risk' uses 3 years of weekly returns, "
-        "so correlation counts: a stock that moves against the core adds less risk than its weight. Returns are "
-        "in each listing's own currency; currency risk isn't modelled. Stocks below your required return get 0%."
+        f"Invest £{filled * value:,.0f} now across {len(today)} holdings, each at its planned size, and keep "
+        f"£{(1 - filled) * value:,.0f} back for the other {int(holdings) - len(today)} slots until more ideas pass "
+        f"your tests; putting it all in now would make each position about {1 / filled:.1f}× its planned size. "
+        f"'Pie %' is the split to enter in the pie. Pie: expected return ~{expected:.1%} a year (benchmark assumed "
+        f"{BENCHMARK_EXPECTED_RETURN:.0%}), volatility {pie_vol:.1%} (benchmark {vols[benchmark]:.1%}), "
+        f"correlation with the benchmark {pie_corr:.2f}."
+    )
+    st.caption(
+        "How sizes are set: the standard position is 1/N of the pie, scaled by conviction (0.6-1.5×: expected "
+        "return above your required return, and uncertainty) and by volatility against a typical 25%-volatility "
+        "stock (0.5-1.5×). Failing the required return means no position; failing only the margin of safety means "
+        "a half-size starter. Caps: 2× the standard for Low uncertainty, 1.5× Medium, 1× High, 0.5× Very high, "
+        "and the sector cap. Volatility and correlation use 3 years of weekly returns in sterling, so the dollar's "
+        "moves count for US stocks."
     )

@@ -42,14 +42,16 @@ The app runs top to bottom in seven sections.
 6. Valuation journal: save a valuation with a Buy / Watch / Pass decision and a
    thesis, then track the return since each call and a scorecard by decision. Kept
    locally in `journal/` (git-ignored), as a record against hindsight bias.
-7. Portfolio sizing: a core index fund plus your journaled Buy/Watch calls,
-   sized by risk rather than money. Each stock gets a standalone risk budget
-   (e.g. 1% of the portfolio) scaled by conviction (expected return above your
-   required return, and the uncertainty rating), divided by its volatility, then
-   capped per stock, per sector and for the satellite as a whole. Volatility and
-   correlation come from three years of weekly prices, so each holding's share of
-   portfolio risk reflects how it moves with the core. Expected returns only tilt
-   the sizes, because they are the least reliable input.
+7. Stock pie sizing: a concentrated pie of about N holdings (10 by default),
+   built from your journaled Buy/Watch calls re-priced at today's price. Each
+   stock starts from a standard position (1/N), scaled by conviction (expected
+   return above your required return, and the uncertainty rating) and by
+   volatility against a typical stock, then capped per stock and per sector. A
+   stock failing the required return gets nothing; one that passes but trades
+   above the buy zone gets a half-size starter. Stocks are bought at their planned
+   size and the rest is held back until more ideas pass, rather than
+   over-concentrating early. Volatility and correlation use three years of
+   weekly returns in sterling, so the dollar's moves count for US stocks.
 
 The Excel export rebuilds the base-case DCF from live formulas (inputs in blue,
 each with its source), so it can be audited and changed in Excel; a test
