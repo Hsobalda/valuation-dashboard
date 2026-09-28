@@ -124,6 +124,31 @@ def load_peer_suggestions(ticker: str, industry_key: str, sector_key: str) -> li
     return [t for t in sample_tickers() if t != ticker]
 
 
+@cache_data(ttl=6 * 3600)
+def load_insider_trades(ticker: str) -> list[dict] | None:
+    """Form 4 trades from the last 6 months; None if SEC data isn't available."""
+    global _EDGAR
+    if _EDGAR is None:
+        _EDGAR = EdgarClient.from_env()
+    if _EDGAR is None:
+        return None
+    try:
+        return _EDGAR.insider_trades(ticker)
+    except Exception:
+        return None
+
+
+@cache_data(ttl=86400)
+def load_weekly_closes(ticker: str) -> pd.Series | None:
+    if not _live_available():
+        return None
+    try:
+        closes = YFinanceProvider().weekly_closes(ticker)
+        return closes if len(closes) >= 52 else None
+    except Exception:
+        return None
+
+
 @cache_data(ttl=86400)
 def load_peer_profile(ticker: str) -> dict | None:
     if _live_available():
@@ -179,6 +204,12 @@ class MultiProvider:
 
     def sec_rejected(self, ticker: str) -> list[str]:
         return self._get(ticker)["sec_rejected"]
+
+    def insider_trades(self, ticker: str) -> list[dict] | None:
+        return load_insider_trades(ticker) if self.source(ticker) == "live" else None
+
+    def weekly_closes(self, ticker: str) -> pd.Series | None:
+        return load_weekly_closes(ticker)
 
     def peer_profiles(self, tickers: list[str]) -> list[dict]:
         return [p for p in (load_peer_profile(t) for t in tickers) if p]

@@ -82,9 +82,17 @@ def _align_years(a: pd.Series, b: pd.Series) -> tuple[pd.Series, pd.Series, list
 
 
 def _net_debt(balance: pd.DataFrame) -> pd.Series:
-    """Debt less cash, short-term investments and long-term marketable securities."""
+    """Debt less cash, short-term investments and long-term marketable securities.
+
+    The investment fields are optional: a company that holds none in a given
+    year simply files no XBRL fact for it, so a missing value there means zero,
+    not unknown, and must not be left as NaN (which would silently blank out
+    net debt, invested capital and ROIC for that year, as it did for PayPal
+    once it stopped reporting long-term securities after 2021).
+    """
     return (_col(balance, "total_debt") - _col(balance, "cash_and_equiv")
-            - _col(balance, "short_term_investments") - _col(balance, "long_term_investments"))
+            - _col(balance, "short_term_investments").fillna(0.0)
+            - _col(balance, "long_term_investments").fillna(0.0))
 
 
 def _invested_capital(balance: pd.DataFrame) -> pd.Series:
@@ -114,6 +122,16 @@ _CAPTIVE_FINANCE_INDUSTRIES = ("Auto Manufacturers", "Farm & Heavy Construction 
 
 def captive_finance_likely(info: dict) -> bool:
     return (info.get("industry") or "") in _CAPTIVE_FINANCE_INDUSTRIES
+
+
+# A steady, smoothly-reinvesting DCF fits a commodity producer poorly: revenue
+# and margins swing with a price it doesn't set (oil, copper, gold), not with
+# the demand-driven growth the model's reinvestment logic assumes.
+_CYCLICAL_COMMODITY_SECTORS = ("Energy", "Basic Materials")
+
+
+def cyclical_commodity_likely(info: dict) -> bool:
+    return (info.get("sector") or "") in _CYCLICAL_COMMODITY_SECTORS
 
 
 def screen_peers(target: dict, candidates: list[dict]) -> list[dict]:
@@ -382,6 +400,18 @@ def panel_priced_in(provider, ticker: str) -> dict:
     ev_ebitda = ev / m["ebitda"] if m["ebitda"] else float("nan")
     ev_rev = ev / m["revenue"] if m["revenue"] else float("nan")
     pb = price / m["bvps"] if m["bvps"] else float("nan")
+    note = ""
+    if m.get("currency_mismatch"):
+        # price in one currency, accounts in another (e.g. JD: USD price, CNY
+        # earnings): dividing one by the other gave JD a fake 2x P/E. Use Yahoo's
+        # own ratios where it reports them; EV multiples can't be built reliably.
+        mkt = provider.market_data(ticker)
+        pe = mkt.get("pe_trailing_reported") or float("nan")
+        pb = mkt.get("pb_reported") or float("nan")
+        ev_ebitda = ev_rev = float("nan")
+        note = (f"Price is in {info.get('currency')} but the accounts are in "
+                f"{info.get('financial_currency')}, so these are Yahoo's own ratios "
+                "(adjusted for currency and ADR ratio); EV multiples are left out.")
 
     return {
         "title": "F. What's already priced in?",
@@ -392,6 +422,7 @@ def panel_priced_in(provider, ticker: str) -> dict:
         "ev_ebitda": ev_ebitda,
         "ev_revenue": ev_rev,
         "pb": pb,
+        "note": note,
         "what_this_means": (
             "The market is always pricing in *some* forecast. Compare these "
             "multiples to the peers below and ask: is the premium/discount "
@@ -408,6 +439,37 @@ def _cagr(series: pd.Series) -> float:
         return float("nan")
     years = s.size - 1
     return (s.iloc[-1] / s.iloc[0]) ** (1 / years) - 1.0
+
+
+def insider_summary(trades: list[dict]) -> dict:
+    """Open-market buying and selling by insiders, separated from routine activity.
+
+    Open-market purchases are the informative trades: insiders sell for many
+    reasons (tax, diversification, a house) but buy with their own money for one.
+    Sales under a pre-arranged 10b5-1 plan say little about the insider's view today.
+    """
+    buys = [t for t in trades if t["code"] == "P"]
+    sells = [t for t in trades if t["code"] == "S"]
+    discretionary = [t for t in sells if not t["planned"]]
+    return {
+        "title": "G. What are insiders doing?",
+        "decision": "conviction check (who is buying with their own money)",
+        "buy_count": len(buys),
+        "buy_value": sum(t["value"] for t in buys),
+        "buyers": sorted({t["insider"] for t in buys}),
+        "sell_count": len(sells),
+        "sell_value": sum(t["value"] for t in sells),
+        "planned_sell_count": len(sells) - len(discretionary),
+        "discretionary_sell_value": sum(t["value"] for t in discretionary),
+        "routine_count": len(trades) - len(buys) - len(sells),
+        "open_market": sorted(buys + sells, key=lambda t: t["date"], reverse=True),
+        "what_this_means": (
+            "Insiders sell for many reasons (tax, diversification, a house) but buy on the open "
+            "market with their own money for one. Purchases, especially several insiders at once "
+            "or by the CEO or CFO, are the signal worth noticing. Sales under a pre-arranged "
+            "10b5-1 plan say little; awards, option exercises and tax withholding are routine."
+        ),
+    }
 
 
 def build_brief(provider, ticker: str, reference_wacc: float) -> dict:

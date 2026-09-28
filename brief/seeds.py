@@ -16,7 +16,10 @@ from .panels import _col, _fcf, reinvestment_history, roic_history
 HURDLE_RATE = 0.10  # your required return: a buy test, not a valuation input
 RISK_FREE = 0.04
 EQUITY_RISK_PREMIUM = 0.05
-DISCOUNT_RANGE = (0.04, 0.16)  # discount-rate slider range
+DISCOUNT_RANGE = (0.06, 0.16)  # discount-rate slider range; floor avoids the
+# blended WACC landing implausibly low for a low-beta, debt-heavy company
+# (Verizon's raw blend came out near 5% even with adjusted beta) -- cheap debt
+# in the capital structure isn't the same thing as a genuinely low-risk business
 
 SEED_YEARS = 10
 MAX_SEED_GROWTH = 0.15
@@ -167,6 +170,10 @@ def derive_starting_assumptions(provider, ticker: str) -> dict:
                 f"(risk-free {RISK_FREE:.0%} + adjusted beta {ref['beta_adjusted']:.2f} x "
                 f"{EQUITY_RISK_PREMIUM:.0%} equity risk premium) and after-tax cost of debt, "
                 "weighted by market values"
+                + (f". Raw WACC came out at {ref['wacc']:.1%}, below the "
+                   f"{DISCOUNT_RANGE[0]:.0%} floor (cheap debt in the capital structure isn't "
+                   "the same as a genuinely low-risk business), so the floor was used instead"
+                   if ref["wacc"] < DISCOUNT_RANGE[0] else "")
             ),
             "hurdle_rate": (
                 "the return you require before buying. It doesn't change the fair value; "

@@ -55,6 +55,20 @@ def derive_metrics(info: dict, market: dict, income: pd.DataFrame,
     def f(df, field):
         return _latest(df[field]) if field in df.columns else 0.0
 
+    def f_additive(df, field):
+        """Like `f`, but for an optional balance-sheet field (investments,
+        minority interest) where a company reports no XBRL fact in a year it
+        holds none: that means zero for THIS year, not "unknown, so reuse the
+        last year it did report." `_latest`'s dropna()+last would instead
+        reach back to a stale, possibly years-old figure (PayPal stopped
+        reporting long-term investments after 2021; treating that gap as
+        "unknown" carried its 2021 $3.5bn balance into net debt every year
+        since, understating it by the same amount)."""
+        if field not in df.columns or df.empty:
+            return 0.0
+        v = df[field].iloc[-1]
+        return float(v) if v == v else 0.0
+
     revenue = f(income, "revenue")
     oi = f(income, "operating_income")
     da = f(income, "depreciation_amortization")
@@ -62,10 +76,10 @@ def derive_metrics(info: dict, market: dict, income: pd.DataFrame,
     eps = f(income, "eps_diluted")
     net_income = f(income, "net_income")
     cash = f(balance, "cash_and_equiv")
-    st_inv = f(balance, "short_term_investments") + f(balance, "long_term_investments")
+    st_inv = f_additive(balance, "short_term_investments") + f_additive(balance, "long_term_investments")
     debt = f(balance, "total_debt")
     equity = f(balance, "stockholder_equity")
-    minority = f(balance, "minority_interest")
+    minority = f_additive(balance, "minority_interest")
     shares = market.get("shares_outstanding", 0.0)
     # Current share count grossed up by last year's dilution ratio. Using the
     # average diluted count directly would overstate shares for companies that
@@ -139,6 +153,7 @@ class SampleProvider:
         info, inc = COMPANIES[ticker]["info"], self._frames[ticker]["income"]
         return {
             "ticker": ticker,
+            "currency": info["currency"],
             "price": COMPANIES[ticker]["market"]["price"],
             "name": info["name"],
             "industry": info["industry"],
@@ -327,6 +342,12 @@ class YFinanceProvider:
             "target_low": float(info.get("targetLowPrice") or 0.0) / unit,
             "target_high": float(info.get("targetHighPrice") or 0.0) / unit,
             "analyst_count": int(info.get("numberOfAnalystOpinions") or 0),
+            # Yahoo's own ratios, computed in one consistent currency and ADR basis:
+            # the only trustworthy multiples for a listing whose price and accounts
+            # are in different currencies
+            "pe_trailing_reported": float(info.get("trailingPE") or 0.0),
+            "pe_forward_reported": float(info.get("forwardPE") or 0.0),
+            "pb_reported": float(info.get("priceToBook") or 0.0),
             "market_cap": float(info.get("marketCap") or 0.0),
             "shares_outstanding": float(info.get("sharesOutstanding") or 0.0),
         }
@@ -338,6 +359,7 @@ class YFinanceProvider:
         unit = 100.0 if info.get("currency") in self._MINOR_UNITS else 1.0
         return {
             "ticker": ticker,
+            "currency": cur,
             "price": float(info.get("currentPrice") or info.get("regularMarketPrice") or 0.0) / unit,
             "name": info.get("shortName") or ticker,
             "industry": info.get("industry", ""),
@@ -347,6 +369,13 @@ class YFinanceProvider:
             "reports_ebitda": info.get("ebitda") is not None,
             "currency_mismatch": fin != cur and is_foreign_us_listing(info.get("country", ""), cur),
         }
+
+    def weekly_closes(self, ticker: str, period: str = "3y") -> pd.Series:
+        """Weekly closing prices, dated by week start (timezone dropped so listings
+        on different exchanges line up)."""
+        closes = self._ticker(ticker).history(period=period, interval="1wk")["Close"].dropna()
+        closes.index = closes.index.tz_localize(None).normalize()
+        return closes
 
     def consensus(self, ticker: str) -> dict:
         """Analyst consensus revenue for the current and next fiscal year."""

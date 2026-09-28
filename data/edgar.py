@@ -10,12 +10,18 @@ from __future__ import annotations
 
 import datetime as dt
 import os
+import threading
+import time
+from concurrent.futures import ThreadPoolExecutor
 
 import pandas as pd
 
 CONTACT_ENV = "SEC_CONTACT_EMAIL"
 _TICKERS_URL = "https://www.sec.gov/files/company_tickers.json"
 _FACTS_URL = "https://data.sec.gov/api/xbrl/companyfacts/CIK{cik:010d}.json"
+_SUBMISSIONS_URL = "https://data.sec.gov/submissions/CIK{cik:010d}.json"
+_ARCHIVE_URL = "https://www.sec.gov/Archives/edgar/data/{cik}/{accession}/{document}"
+_MAX_REQUESTS_PER_SECOND = 8  # the SEC's fair-access limit is 10
 
 # normalized field -> us-gaap tags, preferred first. Companies switch tags over
 # time (Apple moved from SalesRevenueNet to RevenueFromContractWith... in 2017),
@@ -141,6 +147,16 @@ class EdgarClient:
         self._session = requests.Session()
         self._session.headers["User-Agent"] = f"valuation-dashboard {contact}"
         self._ciks: dict[str, int] | None = None
+        self._lock = threading.Lock()
+        self._next_request = 0.0
+
+    def _throttle(self) -> None:
+        with self._lock:
+            now = time.monotonic()
+            wait = self._next_request - now
+            self._next_request = max(now, self._next_request) + 1 / _MAX_REQUESTS_PER_SECOND
+        if wait > 0:
+            time.sleep(wait)
 
     @classmethod
     def from_env(cls) -> "EdgarClient | None":
@@ -148,6 +164,7 @@ class EdgarClient:
         return cls(contact) if contact else None
 
     def _get(self, url: str) -> dict:
+        self._throttle()
         r = self._session.get(url, timeout=30)
         r.raise_for_status()
         return r.json()
@@ -162,3 +179,33 @@ class EdgarClient:
         if cik is None:
             return None
         return statements_from_facts(self._get(_FACTS_URL.format(cik=cik)))
+
+    def insider_trades(self, ticker: str, days: int = 183, max_filings: int = 120) -> list[dict] | None:
+        """Form 4 transactions filed in the last `days`, newest filings first."""
+        from .insiders import parse_form4
+
+        cik = self.cik(ticker)
+        if cik is None:
+            return None
+        recent = self._get(_SUBMISSIONS_URL.format(cik=cik))["filings"]["recent"]
+        since = (dt.date.today() - dt.timedelta(days=days)).isoformat()
+        filings = [
+            (recent["accessionNumber"][i], recent["primaryDocument"][i], recent["filingDate"][i])
+            for i in range(len(recent["form"]))
+            if recent["form"][i] == "4" and recent["filingDate"][i] >= since
+        ][:max_filings]
+
+        def fetch(filing):
+            accession, document, filed = filing
+            self._throttle()
+            url = _ARCHIVE_URL.format(cik=cik, accession=accession.replace("-", ""),
+                                      document=document.split("/")[-1])  # raw XML, not the XSL view
+            try:
+                r = self._session.get(url, timeout=30)
+                r.raise_for_status()
+                return [{**t, "filed": filed} for t in parse_form4(r.text)]
+            except Exception:
+                return []
+
+        with ThreadPoolExecutor(max_workers=4) as pool:
+            return [t for batch in pool.map(fetch, filings) for t in batch]

@@ -12,12 +12,14 @@ source, before you change it.
 
 ## Features
 
-The app runs top to bottom in six sections.
+The app runs top to bottom in seven sections.
 
 1. Research brief: business overview; revenue, margin and cash-flow history;
    ROIC against the company's WACC; capital allocation (free cash flow after stock
-   pay against dividends and buybacks, share count trend); risk flags; and current
-   multiples.
+   pay against dividends and buybacks, share count trend); risk flags; current
+   multiples; and insider trading from SEC Form 4 filings (filed within two
+   business days), with open-market purchases separated from routine activity
+   and from sales under pre-arranged 10b5-1 plans.
 2. Assumptions: a revenue growth path (years 1-2 from analyst consensus, year 5
    your view) with a cross-check of historical, consensus and fundamental growth
    (reinvestment rate × ROIC); current and target margin; return on capital; fade
@@ -40,6 +42,16 @@ The app runs top to bottom in six sections.
 6. Valuation journal: save a valuation with a Buy / Watch / Pass decision and a
    thesis, then track the return since each call and a scorecard by decision. Kept
    locally in `journal/` (git-ignored), as a record against hindsight bias.
+7. Stock pie sizing: a concentrated pie of about N holdings (10 by default),
+   built from your journaled Buy/Watch calls re-priced at today's price. Each
+   stock starts from a standard position (1/N), scaled by conviction (expected
+   return above your required return, and the uncertainty rating) and by
+   volatility against a typical stock, then capped per stock and per sector. A
+   stock failing the required return gets nothing; one that passes but trades
+   above the buy zone gets a half-size starter. Stocks are bought at their planned
+   size and the rest is held back until more ideas pass, rather than
+   over-concentrating early. Volatility and correlation use three years of
+   weekly returns in sterling, so the dollar's moves count for US stocks.
 
 The Excel export rebuilds the base-case DCF from live formulas (inputs in blue,
 each with its source), so it can be audited and changed in Excel; a test
@@ -125,7 +137,15 @@ and free cash flow history.
 
 Carmakers and machinery makers with a finance arm (Ford, GM, Caterpillar,
 Deere) get a warning: the finance arm's debt sits in net debt but the customer
-loans it funds aren't counted, so the DCF understates the equity.
+loans it funds aren't counted, so the DCF understates the equity. Energy and
+Basic Materials companies (oil, gas, mining, metals) get a warning too: they
+don't set the price of what they sell, so real revenue and margins swing with
+the commodity cycle in ways a straight-line growth path can't capture.
+
+The discount rate has a 6% floor. A low beta and heavy, cheap debt can blend
+to an implausibly low WACC (Verizon's raw blend came out near 5%), and cheap
+debt in the capital structure isn't the same thing as a genuinely low-risk
+business; the seed explains when the floor has overridden the raw calculation.
 
 Quality metrics include ROIC, gross/operating/net margins, margin volatility and
 FCF conversion (FCF / net income).
@@ -164,6 +184,10 @@ TSMC's) is left out instead, since one ADR can represent several home shares.
   some lines inconsistently (Coca-Cola's debt assembled to $1.5bn against an
   actual $45bn), so each SEC line is cross-checked against Yahoo on the years
   both cover and dropped if they differ by more than 10%; the app says which.
+- Insider trades come from each Form 4 filed with the SEC in the last six months,
+  parsed for the transaction code (P = open-market purchase, S = sale, and
+  routine codes for awards, option exercises and tax withholding) and the 10b5-1
+  plan flag.
 - Everything else (prices, market data, analyst estimates and targets, and
   statements for non-US companies) comes from Yahoo Finance via `yfinance`.
 - Offline, the app falls back to bundled sample data for AAPL, MSFT, PEP, T

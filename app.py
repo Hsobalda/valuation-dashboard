@@ -15,13 +15,14 @@ import streamlit as st
 import pandas as pd
 
 from data import MultiProvider, sample_tickers
-from brief import build_brief, captive_finance_likely, dcf_applicable, derive_starting_assumptions, reinvestment_history, screen_peers
+from brief import build_brief, captive_finance_likely, cyclical_commodity_likely, insider_summary, dcf_applicable, derive_starting_assumptions, reinvestment_history, screen_peers
 from engine import comps_analysis, implied_return, implied_revenue_growth, run_scenarios, run_valuation
 from ui import charts
 from ui.tables import projection_table, reinvestment_history_table
 from ui.assumptions import render_assumption_panel
 from ui.excel_export import build_dcf_workbook
 from ui.journal import render_history, render_save_form
+from ui.portfolio import render_portfolio
 
 st.set_page_config(page_title="Valuation Dashboard", layout="wide")
 
@@ -165,7 +166,47 @@ with st.expander("F. What's already priced in?", expanded=True):
         "P/E": [f["pe"]], "EV/EBITDA": [f["ev_ebitda"]],
         "EV/Revenue": [f["ev_revenue"]], "P/B": [f["pb"]],
     }), width="stretch")
+    if f["note"]:
+        st.warning(f["note"], icon=":material/currency_exchange:")
     st.caption("Decision this feeds: " + f["decision"] + " · " + f["what_this_means"])
+
+with st.expander("G. What are insiders doing? (SEC Form 4, last 6 months)", expanded=True):
+    if st.toggle("Load insider trades from SEC filings", key=f"{ticker}:insiders",
+                 help="Fetches each Form 4 the company's insiders filed in the last 6 months (a few seconds)"):
+        trades = provider.insider_trades(ticker)
+        if trades is None:
+            st.caption("Form 4 data covers companies filing with the SEC (US listings), and needs "
+                       "SEC_CONTACT_EMAIL set. Not available for this company.")
+        else:
+            g = insider_summary(trades)
+            (st.success if g["buy_count"] else st.info)(
+                f"**{g['buy_count']} open-market purchases** worth ${g['buy_value']:,.0f}"
+                + (f" by {', '.join(g['buyers'])}" if g["buyers"] else "")
+                + f" · **{g['sell_count']} open-market sales** worth ${g['sell_value']:,.0f}, "
+                f"{g['planned_sell_count']} of them under pre-arranged 10b5-1 plans "
+                f"(${g['discretionary_sell_value']:,.0f} discretionary) · "
+                f"{g['routine_count']} routine transactions (awards, option exercises, tax withholding, gifts)"
+            )
+            if g["open_market"]:
+                st.dataframe(pd.DataFrame([{
+                    "Date": t["date"],
+                    "Insider": t["insider"],
+                    "Role": t["role"],
+                    "Trade": "Buy" if t["code"] == "P" else "Sell",
+                    "Shares": f"{t['shares']:,.0f}",
+                    "Price": f"${t['price']:,.2f}",
+                    "Value": f"${t['value']:,.0f}",
+                    "10b5-1 plan": "Yes" if t["planned"] else "No",
+                    "Owned after": f"{t['owned_after']:,.0f}",
+                } for t in g["open_market"][:40]]), hide_index=True, width="stretch")
+            st.caption("Decision this feeds: " + g["decision"] + " · " + g["what_this_means"])
+    else:
+        st.caption("Switch on to fetch the last 6 months of insider filings from the SEC.")
+    if "." not in ticker:
+        st.caption(
+            f"Superinvestor holdings (from 13F filings, up to ~4.5 months old): "
+            f"[{ticker} on Dataroma](https://www.dataroma.com/m/stock.php?sym={ticker})"
+        )
 
 # --- 2. assumptions + 3. valuation ------------------------------------------
 
@@ -225,6 +266,17 @@ else:
             "this DCF understates the equity: treat it as a floor. Professionals value the "
             "finance arm separately, roughly at its book equity.",
             icon=":material/account_balance:",
+        )
+
+    if cyclical_commodity_likely(info):
+        st.warning(
+            f"{info.get('name', ticker)} sells a commodity it doesn't set the price of. This DCF "
+            "assumes smooth, demand-driven growth and reinvestment, which fits a cyclical "
+            "commodity producer poorly: real revenue and margins swing with the commodity "
+            "price, often sharply, in ways a straight-line growth path can't capture. Treat the "
+            "output as a rough anchor, not a precise estimate, and sanity-check the growth "
+            "assumptions against where the commodity cycle actually is.",
+            icon=":material/trending_flat:",
         )
 
     if res.equity_value_per_share <= 0:
@@ -498,6 +550,20 @@ if run is not None:
                 ("SEC filings + Yahoo" if provider.uses_sec_filings(ticker) else "Yahoo"),
     })
 render_history(provider, ticker)
+
+# --- 7. portfolio sizing -----------------------------------------------------
+
+st.markdown("### 7. Stock pie sizing")
+if st.toggle("Size my stock pie", key="pf:on",
+             help="Your journaled Buy/Watch calls plus this company, sized by conviction and risk"):
+    render_portfolio(provider, None if run is None else {
+        "ticker": ticker,
+        "expected_return": expected,
+        "passes_margin_of_safety": price <= buy_zone,
+        "uncertainty": next((r for r, m in seed["uncertainty_mos"].items()
+                             if m == assumptions.margin_of_safety), "Medium"),
+        "hurdle": assumptions.hurdle_rate,
+    })
 
 st.markdown("---")
 st.caption(

@@ -67,6 +67,28 @@ def test_derive_metrics_handles_missing_columns():
     assert m["shares_diluted"] == pytest.approx(100.0)  # no share data -> no dilution
 
 
+def test_stale_optional_balance_sheet_field_treated_as_zero_not_carried_forward():
+    """A company (like PayPal after 2021) that stops reporting an optional field
+    once it holds none files no XBRL fact for it in later years: that must read
+    as zero for the current year, not fall back to an old year's non-zero value."""
+    import pandas as pd
+
+    info = {"beta": 1.0}
+    market = {"price": 10.0, "market_cap": 1000.0, "shares_outstanding": 100.0}
+    inc = pd.DataFrame({"revenue": [100.0, 105.0], "operating_income": [20.0, 21.0],
+                        "eps_diluted": [1.0, 1.05], "net_income": [15.0, 16.0]}, index=[2021, 2022])
+    bal = pd.DataFrame({
+        "cash_and_equiv": [10.0, 12.0], "total_debt": [50.0, 50.0], "stockholder_equity": [80.0, 90.0],
+        "long_term_investments": [35.0, float("nan")],  # reported in 2021, gone by 2022
+        "minority_interest": [0.0, float("nan")],
+    }, index=[2021, 2022])
+    cf = pd.DataFrame({"operating_cash_flow": [25.0, 26.0], "capital_expenditure": [5.0, 5.0]},
+                      index=[2021, 2022])
+    m = derive_metrics(info, market, inc, bal, cf)
+    assert m["net_debt"] == pytest.approx(50.0 - 12.0)  # not 50 - 12 - 35
+    assert m["minority_interest"] == pytest.approx(0.0)
+
+
 def test_diluted_shares_use_current_count_times_dilution_ratio():
     import pandas as pd
 
