@@ -15,8 +15,9 @@ class Segment:
     name: str
     revenue: float                  # latest fiscal year
     growth_y1: float
-    growth_y5: float                # growth moves in a straight line from year 1 to year 5
+    growth_y5: float
     margin: float | None = None     # operating margin, optional
+    growth_y2: float | None = None  # None: straight line from year 1 to year 5
 
 
 @dataclass
@@ -30,7 +31,13 @@ class SegmentBuild:
 
 
 def _growth(seg: Segment, t: int, years: int) -> float:
-    return seg.growth_y1 + (seg.growth_y5 - seg.growth_y1) * (t - 1) / (years - 1)
+    """Same shape as Assumptions.growth_path: year 1, year 2, then a straight
+    line to the final year. Without a year-2 rate, a straight line from year 1."""
+    if seg.growth_y2 is None or years < 3:
+        return seg.growth_y1 + (seg.growth_y5 - seg.growth_y1) * (t - 1) / max(years - 1, 1)
+    if t == 1:
+        return seg.growth_y1
+    return seg.growth_y2 + (seg.growth_y5 - seg.growth_y2) * (t - 2) / (years - 2)
 
 
 def build(segments: list[Segment], years: int = 5) -> SegmentBuild:

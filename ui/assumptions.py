@@ -132,7 +132,7 @@ def render_assumption_panel(seed: dict, ticker: str) -> Assumptions:
         if built:
             growth_override, blended_margin = built
             if blended_margin is not None and st.checkbox(
-                f"Use the blended year-5 margin ({blended_margin:.1%}) as the target EBIT margin",
+                f"Use the segment mix's year-5 margin ({blended_margin:.1%}) as the target EBIT margin",
                 key=f"{ticker}:use_segment_margin",
             ):
                 target_margin = blended_margin

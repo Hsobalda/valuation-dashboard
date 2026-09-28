@@ -32,3 +32,32 @@ def test_empty_or_zero_revenue_rejected():
         build([])
     with pytest.raises(ValueError):
         build([Segment("A", 0.0, 0.05, 0.05)])
+
+
+def test_year_two_rate_matches_the_company_growth_path():
+    from engine.valuation import Assumptions
+
+    a = Assumptions(growth_y1=0.10, growth_y2=0.08, growth_y5=0.04)
+    b = build([Segment("All", 100.0, 0.10, 0.04, growth_y2=0.08)])
+    # an unsplit company reproduces the path the sliders would give
+    assert b.growth == pytest.approx(a.growth_path())
+
+
+def test_editor_rows_without_growth_are_left_out_not_zeroed():
+    from ui.segments import to_segments
+
+    segs, missing = to_segments([
+        {"Segment": "A", "Revenue (bn)": 1.0, "Growth yr 1 (%)": 5.0, "Growth yr 2 (%)": None,
+         "Growth yr 5 (%)": 3.0, "Operating margin (%)": float("nan")},
+        {"Segment": "B", "Revenue (bn)": 1.0, "Growth yr 1 (%)": float("nan"), "Growth yr 5 (%)": 3.0},
+    ])
+    assert [s.name for s in segs] == ["A"] and missing == ["B"]
+    assert segs[0].growth_y2 is None and segs[0].margin is None
+
+
+def test_saved_rows_from_before_year_two_column_still_load():
+    from ui.segments import to_segments
+
+    segs, _ = to_segments([{"Segment": "A", "Revenue (bn)": 1.0, "Growth yr 1 (%)": 5.0,
+                            "Growth yr 5 (%)": 3.0, "Operating margin (%)": 20.0}])
+    assert build(segs).growth == pytest.approx([0.05, 0.045, 0.04, 0.035, 0.03])
