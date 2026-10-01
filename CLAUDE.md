@@ -83,21 +83,31 @@ fiscal years.
 
 ## Status
 
-_Last updated: 2026-09-30_
+_Last updated: 2026-10-01_
 
-- Latest work: data-consistency fixes found while valuing NVDA. SEC share
-  counts and EPS are now split-adjusted (`data/edgar.py`), panels D and E and
-  the seeds use the latest unbroken run of cash-flow years when the SEC data
-  has holes, and trailing multiples (Panel F and comps) use the last twelve
-  months instead of the last fiscal year. Forward EPS for London listings that
-  report in dollars or euros is no longer converted twice.
-- Journal calls can now be edited (decision and thesis only) from section 6;
-  price, fair value and assumptions stay as saved.
+- Latest work: data-consistency fixes found while valuing NVDA (split-adjusted
+  SEC share counts and EPS in `data/edgar.py`, gap-aware cash-flow panels and
+  seeds, trailing-twelve-month multiples, no double FX conversion of forward
+  EPS for London listings). Journal calls can be edited (decision and thesis
+  only) from section 6, on any page.
+- Journal (local, git-ignored) holds calls on JD.L, IMB.L, NVDA, CTSH, ACN and
+  2330.TW. Theses are short and in the user's voice. Open points the user
+  still has to fix in their own notes: IMB.L is marked Buy but fails the
+  margin of safety test; JD.L's quoted model range and 9.6% discount rate
+  don't match or explain the saved numbers.
+- Next ideas, in order:
+  1. Real bear-case scenarios written per stock (a growth path and margin,
+     not the flat +/-3 points of growth swing, which is barely a bear case for
+     a company growing 90% a year).
+  2. Then set the margin of safety from how far the bear case sits below fair
+     value, rounded to the 20/30/40/50 ladder. The current uncertainty score
+     is the dashboard's own four-factor rule, not Morningstar's method, and it
+     counts beta twice (discount rate and uncertainty score).
+  3. A "sell above" price on each journal call: the price where the expected
+     return falls to the user's 10% required return (trim there, exit at 8%).
 - Known limits: capex for years a company filed under its own XBRL label
-  (NVDA FY2013-21) isn't in the SEC feed, so free cash flow is blank there.
-  EPS history isn't split-adjusted when the filings carry no share count to
-  confirm the split (GOOGL before 2020); nothing reads that history yet.
-- Open question: the bear/bull growth swing is a flat +/-3 points, which is
-  barely a bear case for a company growing 90% a year. Not changed yet.
+  (NVDA FY2013-21) isn't in the SEC feed. EPS history isn't split-adjusted
+  when no share count confirms the split (GOOGL before 2020); nothing reads it.
+  Non-US filers that report under IFRS (e.g. TSMC) get only Yahoo's ~4 years.
 - Untracked `portfolio-sizing.bundle` (a git bundle from the sizing merge) is
   still in the working tree, not reviewed for removal.
