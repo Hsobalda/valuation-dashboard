@@ -33,6 +33,10 @@ def render_history(provider, ticker: str) -> None:
         st.caption("No saved valuations yet.")
         return
 
+    numbered = list(enumerate(entries))[::-1]
+    render_edit_form([ie for ie in numbered if ie[1]["ticker"] == ticker]
+                     + [ie for ie in numbered if ie[1]["ticker"] != ticker])
+
     show_all = st.toggle("All companies", value=False, key="journal:all")
     shown = entries if show_all else [e for e in entries if e["ticker"] == ticker]
     if not shown:
@@ -55,8 +59,6 @@ def render_history(provider, ticker: str) -> None:
         "Thesis": rec["note"],
     }).iloc[::-1], hide_index=True, width="stretch")
 
-    render_edit_form([(i, e) for i, e in enumerate(entries) if show_all or e["ticker"] == ticker])
-
     card = scorecard(rec)
     st.dataframe(pd.DataFrame({
         "Calls": card["calls"],
@@ -70,10 +72,11 @@ def render_history(provider, ticker: str) -> None:
 
 
 def render_edit_form(numbered: list[tuple[int, dict]]) -> None:
-    """Edit the decision and thesis of a saved call. The numbers stay as saved."""
+    """Edit the decision and thesis of any saved call; this company's come first.
+    The numbers stay as saved."""
     with st.expander("Edit a saved call", icon=":material/edit:"):
         i, e = st.selectbox(
-            "Call", numbered[::-1], key="journal:edit_pick",
+            "Call", numbered, key="journal:edit_pick",
             format_func=lambda ie: f"{ie[1]['date']} · {ie[1]['ticker']} · {ie[1].get('decision', '')}",
         )
         with st.form(f"journal:edit:{i}"):
