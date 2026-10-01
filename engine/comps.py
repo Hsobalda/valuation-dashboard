@@ -16,10 +16,10 @@ import pandas as pd
 # Multiple key -> column label -> raw metric it divides / is divided by.
 # value = numerator(metric) / denominator(metric), all from provider.fundamental_metrics().
 _MULTIPLES = {
-    "ev_ebitda": ("EV/EBITDA", "ev", "ebitda"),
-    "pe": ("P/E", "price", "eps"),
+    "ev_ebitda": ("EV/EBITDA", "ev", "ebitda_ttm"),
+    "pe": ("P/E", "price", "eps_ttm"),
     "pe_fwd": ("Fwd P/E", "price", "eps_forward"),
-    "ev_revenue": ("EV/Revenue", "ev", "revenue"),
+    "ev_revenue": ("EV/Revenue", "ev", "revenue_ttm"),
     "ev_revenue_fwd": ("Fwd EV/Revenue", "ev", "revenue_forward"),
     "pb": ("P/B", "price", "bvps"),
 }

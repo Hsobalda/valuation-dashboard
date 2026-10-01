@@ -47,6 +47,20 @@ def _fcf(cashflow: pd.DataFrame) -> pd.Series:
             - _col(cashflow, "stock_based_compensation"))
 
 
+def _latest_run(s: pd.Series) -> pd.Series:
+    """The most recent unbroken run of years with data.
+
+    SEC history can have holes (Nvidia filed capex under its own label for
+    FY2013-21, which the SEC's data feed leaves out), and a total or growth rate
+    taken across a hole would join two unrelated periods.
+    """
+    s = s.dropna()
+    start = len(s) - 1
+    while start > 0 and s.index[start] - s.index[start - 1] == 1:
+        start -= 1
+    return s.iloc[max(start, 0):]
+
+
 def _effective_tax_rate(income: pd.DataFrame) -> pd.Series:
     """Per-year effective tax rate, clipped to [0, 0.5], default 0.21."""
     pretax = _col(income, "pretax_income")
@@ -286,8 +300,15 @@ def panel_capital_allocation(provider, ticker: str) -> dict:
     bal = provider.balance_sheet(ticker)
     cf = provider.cash_flow(ticker)
 
-    # yfinance often returns an all-NaN earliest year; drop years without cash flow data
-    fcf = _fcf(cf).dropna()
+    # yfinance often returns an all-NaN earliest year, and SEC history can have
+    # holes: use the latest unbroken run, and measure everything over it
+    all_fcf = _fcf(cf).dropna()
+    fcf = _latest_run(all_fcf)
+    note = ""
+    if fcf.size < all_fcf.size:
+        note = (f"Free cash flow can't be worked out for FY{all_fcf.index[all_fcf.size - fcf.size - 1] + 1}"
+                f"–FY{fcf.index[0] - 1} (the filings data has no capex or operating cash flow for "
+                f"those years), so this panel covers FY{fcf.index[0]} onwards.")
     dividends = _col(cf, "dividends_paid").reindex(fcf.index).fillna(0.0)
     buybacks = _col(cf, "stock_buybacks").reindex(fcf.index).fillna(0.0)
     sbc = _col(cf, "stock_based_compensation").reindex(fcf.index).fillna(0.0)
@@ -298,10 +319,12 @@ def panel_capital_allocation(provider, ticker: str) -> dict:
     payout = total_returned / total_fcf if total_fcf > 0 else float("nan")
     sbc_share_of_buybacks = float(sbc.sum() / buybacks.sum()) if buybacks.sum() > 0 else float("nan")
 
+    since = fcf.index[0] if fcf.size else 0
     shares = _col(inc, "shares_diluted_avg").replace(0, pd.NA).dropna().astype(float)
-    share_cagr = _cagr(shares)
+    share_cagr = _cagr(shares[shares.index >= since])
 
     net_debt = _net_debt(bal).dropna()
+    net_debt = net_debt[net_debt.index >= since]
     nd_start = float(net_debt.iloc[0]) if net_debt.size else float("nan")
     nd_end = float(net_debt.iloc[-1]) if net_debt.size else float("nan")
 
@@ -329,6 +352,7 @@ def panel_capital_allocation(provider, ticker: str) -> dict:
         "net_debt_start": nd_start,
         "net_debt_end": nd_end,
         "flags": flags,
+        "note": note,
         "what_this_means": (
             "Value in the DCF only reaches shareholders if management spends the "
             "cash well. Steady buybacks shrinking the share count and payouts "
@@ -353,6 +377,8 @@ def panel_risk(provider, ticker: str) -> dict:
     fcf = _fcf(cf)
     ni = _col(inc, "net_income")
     fcf_a, ni_a, fcf_ni_dropped = _align_years(fcf, ni)
+    # only years where free cash flow is known: a missing year isn't a shortfall
+    fcf_a, ni_a = fcf_a.dropna(), ni_a[fcf_a.notna()]
     years_fcf_below_ni = int((fcf_a < ni_a).sum())
 
     flags = []
@@ -365,8 +391,8 @@ def panel_risk(provider, ticker: str) -> dict:
         )
     if years_fcf_below_ni >= 3:
         flags.append(
-            f"FCF below net income in {years_fcf_below_ni} of the last "
-            f"{len(ni_a)} years (earnings may be less cash-backed than they appear)"
+            f"FCF below net income in {years_fcf_below_ni} of the "
+            f"{len(ni_a)} years with data (earnings may be less cash-backed than they appear)"
         )
     ta_last = float(_col(bal, "total_assets").iloc[-1]) if _col(bal, "total_assets").iloc[-1] else 0.0
     goodwill_pct = float(_col(bal, "goodwill").iloc[-1]) / ta_last if ta_last else 0.0
@@ -393,12 +419,12 @@ def panel_priced_in(provider, ticker: str) -> dict:
     m = provider.fundamental_metrics(ticker)
     info = provider.company_info(ticker)
     price = m["price"]
-    eps = m["eps"]
+    eps = m["eps_ttm"]
     ev = m["market_cap"] + m["net_debt"] + m["minority_interest"]
 
     pe = price / eps if eps else float("nan")
-    ev_ebitda = ev / m["ebitda"] if m["ebitda"] else float("nan")
-    ev_rev = ev / m["revenue"] if m["revenue"] else float("nan")
+    ev_ebitda = ev / m["ebitda_ttm"] if m["ebitda_ttm"] else float("nan")
+    ev_rev = ev / m["revenue_ttm"] if m["revenue_ttm"] else float("nan")
     pb = price / m["bvps"] if m["bvps"] else float("nan")
     note = ""
     if m.get("currency_mismatch"):

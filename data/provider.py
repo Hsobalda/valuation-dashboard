@@ -108,6 +108,12 @@ def derive_metrics(info: dict, market: dict, income: pd.DataFrame,
         "shares_outstanding": market.get("shares_outstanding", 0.0),
         "shares_diluted": shares_diluted,
         "eps_forward": market.get("eps_forward", 0.0),
+        # Multiples set today's price against the last twelve months, not the last
+        # fiscal year, which can be most of a year old (Nvidia's P/E read 46x on
+        # January's year-end earnings against 29x on the last four quarters)
+        "eps_ttm": market.get("eps_ttm") or eps,
+        "ebitda_ttm": market.get("ebitda_ttm") or ebitda,
+        "revenue_ttm": market.get("revenue_ttm") or revenue,
         # e.g. a US-listed foreign share: price in USD, statements in KRW, so
         # per-share ratios are meaningless without FX and ADR-ratio adjustments
         "currency_mismatch": bool(info.get("financial_currency"))
@@ -337,7 +343,11 @@ class YFinanceProvider:
         return {
             "fiscal_year_end": dt.date.fromtimestamp(fy_end).isoformat() if fy_end else None,
             "price": price,
-            "eps_forward": float(info.get("forwardEps") or 0.0) * self._fx(ticker),  # reported currency
+            # Yahoo quotes EPS in the share-price currency, totals in the reporting one
+            "eps_forward": float(info.get("forwardEps") or 0.0),
+            "eps_ttm": float(info.get("trailingEps") or 0.0),
+            "ebitda_ttm": float(info.get("ebitda") or 0.0) * self._fx(ticker),
+            "revenue_ttm": float(info.get("totalRevenue") or 0.0) * self._fx(ticker),
             "target_mean": float(info.get("targetMeanPrice") or 0.0) / unit,
             "target_low": float(info.get("targetLowPrice") or 0.0) / unit,
             "target_high": float(info.get("targetHighPrice") or 0.0) / unit,

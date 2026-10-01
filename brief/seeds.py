@@ -11,7 +11,7 @@ import pandas as pd
 
 from engine.wacc import cost_of_equity, wacc
 
-from .panels import _col, _fcf, reinvestment_history, roic_history
+from .panels import _col, _fcf, _latest_run, reinvestment_history, roic_history
 
 HURDLE_RATE = 0.10  # your required return: a buy test, not a valuation input
 RISK_FREE = 0.04
@@ -102,7 +102,7 @@ def derive_starting_assumptions(provider, ticker: str) -> dict:
 
     # fundamental growth = reinvestment rate x ROIC: the growth the company's own
     # reinvestment can fund (net capex only; excludes working capital and M&A)
-    reinvest_rate = reinvestment_history(provider, ticker)["net_capex_pct_nopat"].dropna().tail(SEED_YEARS)
+    reinvest_rate = _latest_run(reinvestment_history(provider, ticker)["net_capex_pct_nopat"]).tail(SEED_YEARS)
     reinvest_rate = float(reinvest_rate.mean()) if reinvest_rate.size else float("nan")
 
     unc = uncertainty_rating(provider, ticker)
@@ -257,7 +257,7 @@ def uncertainty_rating(provider, ticker: str) -> dict:
     score += pts
     reasons.append(f"beta {beta:.2f} (+{pts})")
 
-    fcf = _fcf(provider.cash_flow(ticker)).dropna().tail(SEED_YEARS)
+    fcf = _latest_run(_fcf(provider.cash_flow(ticker))).tail(SEED_YEARS)
     negative = int((fcf < 0).sum())
     pts = 1 if negative else 0
     score += pts

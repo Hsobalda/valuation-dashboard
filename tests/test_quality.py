@@ -195,8 +195,8 @@ def test_priced_in_does_not_divide_dollar_price_by_yuan_earnings():
 
     class _ADR:
         def fundamental_metrics(self, t):
-            return {"price": 26.5, "eps": 12.9, "bvps": 166.6, "market_cap": 35.8e9, "net_debt": -106e9,
-                    "minority_interest": 0.0, "ebitda": 50e9, "revenue": 1309e9, "currency_mismatch": True}
+            return {"price": 26.5, "eps_ttm": 12.9, "bvps": 166.6, "market_cap": 35.8e9, "net_debt": -106e9,
+                    "minority_interest": 0.0, "ebitda_ttm": 50e9, "revenue_ttm": 1309e9, "currency_mismatch": True}
 
         def company_info(self, t):
             return {"currency": "USD", "financial_currency": "CNY"}
@@ -208,3 +208,29 @@ def test_priced_in_does_not_divide_dollar_price_by_yuan_earnings():
     assert f["pe"] == 17.7 and f["pb"] == 1.08          # not the fake 2.1x / 0.16x
     assert f["ev_ebitda"] != f["ev_ebitda"]              # NaN: can't be built
     assert "CNY" in f["note"]
+
+
+def test_capital_allocation_uses_the_latest_unbroken_run_of_years():
+    from brief import panel_capital_allocation
+
+    # capex missing in 2023-24, as when a company files it under its own label
+    stub = _CapStub([100.0] * 6, [10.0] * 6, [0.0] * 6, [50.0, 300.0, 100.0, 100.0, 100.0, 99.0])
+    stub.cf["capital_expenditure"] = [0.0, 0.0, float("nan"), float("nan"), 0.0, 0.0]
+    d = panel_capital_allocation(stub, "X")
+    assert list(d["fcf"].index) == [2025, 2026]
+    assert d["payout_of_fcf"] == pytest.approx(0.1)
+    assert d["share_cagr"] == pytest.approx(-0.01)  # measured over the same years
+    assert "FY2023–FY2024" in d["note"]
+
+
+def test_years_without_cash_flow_data_are_not_counted_as_shortfalls():
+    import pandas as pd
+
+    from brief.panels import panel_risk
+
+    stub = _CapStub([50.0] * 5, [0.0] * 5, [0.0] * 5)
+    stub.cf["capital_expenditure"] = [float("nan"), float("nan"), 0.0, 0.0, 0.0]
+    stub.inc = pd.DataFrame({"net_income": [60.0] * 5}, index=stub.cf.index)
+    stub.company_info = lambda t: {}
+    flags = panel_risk(stub, "X")["flags"]
+    assert any("3 of the 3 years with data" in f for f in flags)

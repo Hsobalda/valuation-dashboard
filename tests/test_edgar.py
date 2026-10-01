@@ -79,3 +79,44 @@ def test_grand_total_debt_tag_preferred():
         "LongTermDebtCurrent": _tag(_fact(19.0, "2025-12-31")),
     }}}
     assert statements_from_facts(facts)["balance"].loc[2025, "total_debt"] == 158.0
+
+
+def _year(val, year, filed):
+    return _fact(val, f"{year}-12-31", f"{year}-01-01", filed=filed)
+
+
+def test_share_counts_and_eps_are_put_on_todays_share_basis_after_a_split():
+    # 4-for-1 split in 2023: the 2023 10-K restates 2022 but not 2021
+    facts = {"facts": {"us-gaap": {
+        "Revenues": _tag(_year(10.0, 2021, "2022-02-01"), _year(11.0, 2022, "2023-02-01"),
+                         _year(12.0, 2023, "2024-02-01")),
+        "WeightedAverageNumberOfDilutedSharesOutstanding": _tag(
+            _year(100.0, 2021, "2022-02-01"),
+            _year(98.0, 2022, "2023-02-01"), _year(392.0, 2022, "2024-02-01"),
+            _year(388.0, 2023, "2024-02-01"), unit="shares"),
+        "EarningsPerShareDiluted": _tag(
+            _year(4.0, 2021, "2022-02-01"),
+            _year(4.4, 2022, "2023-02-01"), _year(1.1, 2022, "2024-02-01"),
+            _year(1.2, 2023, "2024-02-01"), unit="USD/shares"),
+    }}}
+    inc = statements_from_facts(facts)["income"]
+    assert inc["shares_diluted_avg"].to_dict() == {2021: 400.0, 2022: 392.0, 2023: 388.0}
+    assert inc["eps_diluted"].to_dict() == {2021: 1.0, 2022: 1.1, 2023: 1.2}
+
+
+def test_share_count_refiled_in_different_units_leaves_eps_alone():
+    # 2021 first filed in thousands, 2022 corrected in the next 10-K: not a split
+    facts = {"facts": {"us-gaap": {
+        "Revenues": _tag(_year(10.0, 2021, "2022-02-01"), _year(11.0, 2022, "2023-02-01"),
+                         _year(12.0, 2023, "2024-02-01")),
+        "WeightedAverageNumberOfDilutedSharesOutstanding": _tag(
+            _year(0.1, 2021, "2022-02-01"),
+            _year(0.098, 2022, "2023-02-01"), _year(98.0, 2022, "2024-02-01"),
+            _year(97.0, 2023, "2024-02-01"), unit="shares"),
+        "EarningsPerShareDiluted": _tag(
+            _year(4.0, 2021, "2022-02-01"), _year(4.4, 2022, "2023-02-01"),
+            _year(4.4, 2022, "2024-02-01"), _year(4.8, 2023, "2024-02-01"), unit="USD/shares"),
+    }}}
+    inc = statements_from_facts(facts)["income"]
+    assert inc["shares_diluted_avg"].to_dict() == pytest.approx({2021: 100.0, 2022: 98.0, 2023: 97.0})
+    assert inc["eps_diluted"].to_dict() == {2021: 4.0, 2022: 4.4, 2023: 4.8}

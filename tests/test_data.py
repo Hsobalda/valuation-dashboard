@@ -65,6 +65,27 @@ def test_derive_metrics_handles_missing_columns():
     assert m["fcf"] == pytest.approx(20.0)
     assert m["bvps"] == pytest.approx(0.8)
     assert m["shares_diluted"] == pytest.approx(100.0)  # no share data -> no dilution
+    assert m["eps_ttm"] == 1.0 and m["revenue_ttm"] == 100.0  # no trailing figures: last fiscal year
+
+
+def test_multiples_use_the_last_twelve_months_when_reported():
+    import pandas as pd
+
+    from brief.panels import panel_priced_in
+
+    inc = pd.DataFrame({"revenue": [100.0], "operating_income": [20.0], "eps_diluted": [1.0]}, index=[2025])
+    market = {"price": 30.0, "market_cap": 3000.0, "shares_outstanding": 100.0,
+              "eps_ttm": 1.5, "ebitda_ttm": 40.0, "revenue_ttm": 150.0}
+    m = derive_metrics({}, market, inc, pd.DataFrame(index=[2025]), pd.DataFrame(index=[2025]))
+    assert m["eps"] == 1.0 and m["revenue"] == 100.0  # the DCF still starts from the fiscal year
+
+    class _Stub:
+        fundamental_metrics = staticmethod(lambda t: m)
+        company_info = staticmethod(lambda t: {})
+
+    f = panel_priced_in(_Stub(), "X")
+    assert f["pe"] == pytest.approx(20.0)          # 30 / 1.5, not 30 / 1.0
+    assert f["ev_revenue"] == pytest.approx(20.0)  # 3000 / 150
 
 
 def test_stale_optional_balance_sheet_field_treated_as_zero_not_carried_forward():

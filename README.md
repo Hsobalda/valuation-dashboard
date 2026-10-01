@@ -35,7 +35,9 @@ The app runs top to bottom in seven sections.
    the company's actual capex history; and an Excel download of the model.
 4. Relative valuation (context only, not part of fair value): candidate peers with the reason each
    is or isn't suggested, then EV/EBITDA, P/E, forward P/E, EV/Revenue, forward
-   EV/Revenue and P/B against the peer median. A football field sets the DCF
+   EV/Revenue and P/B against the peer median. Trailing multiples use the last twelve months
+   rather than the last fiscal year, so companies with different year ends are
+   compared over the same period. A football field sets the DCF
    ranges beside analyst targets and the price.
 5. Buy decision: two tests, a margin of safety below fair value and an expected
    return at or above your required return.
@@ -180,7 +182,10 @@ TSMC's) is left out instead, since one ADR can represent several home shares.
   10-K filings), typically 15-19 years, with any gaps filled from Yahoo. The
   parser merges the tags a company has used over time (e.g. Apple's switch from
   `SalesRevenueNet` to `RevenueFromContractWithCustomer...` in 2017), keeps only
-  full fiscal years, and takes restated figures over originals. Companies tag
+  full fiscal years, and takes restated figures over originals. A 10-K restates
+  share counts and EPS for a stock split only for the three years it presents, so
+  older years are rescaled by the ratio the later filing reveals (Nvidia's FY2019
+  count is 40 times too small as first filed). Companies tag
   some lines inconsistently (Coca-Cola's debt assembled to $1.5bn against an
   actual $45bn), so each SEC line is cross-checked against Yahoo on the years
   both cover and dropped if they differ by more than 10%; the app says which.

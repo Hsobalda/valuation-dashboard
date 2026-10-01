@@ -9,7 +9,9 @@ same name). Without it EDGAR is skipped and Yahoo's statements are used.
 from __future__ import annotations
 
 import datetime as dt
+import math
 import os
+import statistics
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
@@ -77,12 +79,10 @@ CASHFLOW_TAGS = {
 }
 
 
-def _facts(gaap: dict, tag: str, instant: bool) -> pd.Series:
-    """One tag's annual 10-K values, keyed by period end date; restatements win."""
-    if tag not in gaap:
-        return pd.Series(dtype=float)
-    best: dict[str, tuple[str, float]] = {}
-    for unit_facts in gaap[tag]["units"].values():
+def _reports(gaap: dict, tag: str, instant: bool) -> dict[str, list[tuple[str, float]]]:
+    """Every annual 10-K value of one tag, as (filing date, value) by period end."""
+    out: dict[str, list[tuple[str, float]]] = {}
+    for unit_facts in gaap.get(tag, {}).get("units", {}).values():
         for f in unit_facts:
             if not f.get("form", "").startswith("10-K"):
                 continue
@@ -92,9 +92,52 @@ def _facts(gaap: dict, tag: str, instant: bool) -> pd.Series:
                 days = (dt.date.fromisoformat(f["end"]) - dt.date.fromisoformat(f["start"])).days
                 if not 350 <= days <= 380:  # full years only, not quarters
                     continue
-            if f["end"] not in best or f["filed"] > best[f["end"]][0]:
-                best[f["end"]] = (f["filed"], float(f["val"]))
-    return pd.Series({end: val for end, (_, val) in best.items()}, dtype=float)
+            out.setdefault(f["end"], []).append((f["filed"], float(f["val"])))
+    return out
+
+
+def _facts(gaap: dict, tag: str, instant: bool) -> pd.Series:
+    """One tag's annual 10-K values, keyed by period end date; restatements win."""
+    return pd.Series({end: max(vals, key=lambda v: v[0])[1]
+                      for end, vals in _reports(gaap, tag, instant).items()}, dtype=float)
+
+
+def _restatements(reports: dict[str, list[tuple[str, float]]]) -> dict[str, float]:
+    """Filing date -> ratio by which that filing changed earlier years' figures,
+    ignoring routine restatements of a few percent."""
+    seen: dict[str, list[float]] = {}
+    for vals in reports.values():
+        vals = sorted(vals)
+        for (_, old), (filed, new) in zip(vals, vals[1:]):
+            if old and not 0.8 < new / old < 1.25:
+                seen.setdefault(filed, []).append(new / old)
+    return {filed: statistics.median(ratios) for filed, ratios in seen.items()}
+
+
+def _share_basis(gaap: dict) -> tuple[pd.Series, pd.Series]:
+    """Multipliers, by period end, that put share counts and EPS on today's share basis.
+
+    A 10-K restates share counts and EPS for a stock split, but only for the
+    three years it presents, so older years stay as first filed (Nvidia's FY2019
+    count predates its 4-for-1 and 10-for-1 splits). Where a later filing gives
+    a different count for the same year, the ratio is the split, and it applies
+    to every year last reported before that filing. EPS moves the other way,
+    unless the filing left EPS alone: then it was correcting a count reported in
+    thousands, not a split.
+    """
+    tags = INCOME_TAGS["shares_diluted_avg"] + INCOME_TAGS["shares_basic_avg"]
+    shares = next((r for r in (_reports(gaap, t, instant=False) for t in tags) if r), {})
+    eps = _reports(gaap, INCOME_TAGS["eps_diluted"][0], instant=False)
+    share_x, eps_x = _restatements(shares), _restatements(eps)
+    # EPS alone gets restated for other reasons (GE's discontinued operations),
+    # so a split needs the share count to confirm it
+    eps_x = {filed: 1 / share_x[filed] for filed in eps_x if filed in share_x}
+
+    def factors(reports: dict, ratios: dict[str, float]) -> pd.Series:
+        return pd.Series({end: math.prod(r for filed, r in ratios.items() if filed > max(vals)[0])
+                          for end, vals in reports.items()}, dtype=float)
+
+    return factors(shares, share_x), factors(eps, eps_x)
 
 
 def _merged(gaap: dict, tags: list[str], instant: bool) -> pd.Series:
@@ -125,6 +168,10 @@ def statements_from_facts(facts: dict) -> dict | None:
         return pd.DataFrame({k: v for k, v in cols.items() if not v.empty}).sort_index()
 
     income = frame(INCOME_TAGS, instant=False)
+    shares_x, eps_x = (_by_year(x, fy_ends).reindex(income.index).fillna(1.0) for x in _share_basis(gaap))
+    for field, factor in (("shares_basic_avg", shares_x), ("shares_diluted_avg", shares_x), ("eps_diluted", eps_x)):
+        if field in income:
+            income[field] = income[field] * factor
     balance = frame(BALANCE_TAGS, instant=True)
     cashflow = frame(CASHFLOW_TAGS, instant=False)
 

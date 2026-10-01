@@ -146,6 +146,8 @@ with st.expander("D. How does it use its cash? (capital allocation)", expanded=T
             f"diluted share count {fmt_pct(d['share_cagr'])} a year · net debt "
             f"{d['net_debt_start'] / 1e9:,.1f}bn → {d['net_debt_end'] / 1e9:,.1f}bn"
         )
+        if d["note"]:
+            st.caption(d["note"])
         for flag in d["flags"]:
             st.warning(flag, icon=":material/flag:")
     st.caption("Decision this feeds: " + d["decision"] + " · " + d["what_this_means"])
@@ -168,6 +170,9 @@ with st.expander("F. What's already priced in?", expanded=True):
     }), width="stretch")
     if f["note"]:
         st.warning(f["note"], icon=":material/currency_exchange:")
+    else:
+        st.caption("Earnings, EBITDA and revenue are the last twelve months, so the multiples "
+                   "don't depend on how long ago the fiscal year ended.")
     st.caption("Decision this feeds: " + f["decision"] + " · " + f["what_this_means"])
 
 with st.expander("G. What are insiders doing? (SEC Form 4, last 6 months)", expanded=True):
@@ -486,8 +491,10 @@ else:
         ]
         st.dataframe(table, width="stretch")
         st.caption(
-            "A premium isn't a sell signal and a discount isn't a buy signal: the question is "
-            "whether the business earns it (compare growth, margins and ROIC in the brief)."
+            "Trailing multiples use the last twelve months, so peers with different fiscal "
+            "year ends are compared over the same period. A premium isn't a sell signal and a "
+            "discount isn't a buy signal: the question is whether the business earns it "
+            "(compare growth, margins and ROIC in the brief)."
         )
     else:
         st.caption("No peers selected. Add tickers above to compare multiples.")

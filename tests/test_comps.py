@@ -64,8 +64,8 @@ class _StubProvider:
 
 
 def _metrics(eps, price=100.0):
-    return dict(market_cap=1000.0, net_debt=0.0, minority_interest=0.0, ebitda=100.0,
-                revenue=500.0, price=price, eps=eps, bvps=10.0, shares_diluted=10.0)
+    return dict(market_cap=1000.0, net_debt=0.0, minority_interest=0.0, ebitda_ttm=100.0,
+                revenue_ttm=500.0, price=price, eps_ttm=eps, bvps=10.0, shares_diluted=10.0)
 
 
 def test_target_excluded_from_peer_median():
