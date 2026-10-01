@@ -36,3 +36,25 @@ def load_entries(path: Path | None = None) -> list[dict]:
         except json.JSONDecodeError:
             continue
     return entries
+
+
+def update_entry(index: int, changes: dict, path: Path | None = None) -> None:
+    """Change fields of one entry, numbered as load_entries returns them; every
+    other line, damaged ones included, is written back as it was."""
+    path = path or journal_path()
+    lines = path.read_text(encoding="utf-8").splitlines()
+    valid = -1
+    for i, line in enumerate(lines):
+        try:
+            entry = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        valid += 1
+        if valid == index:
+            lines[i] = json.dumps({**entry, **changes})
+            break
+    else:
+        raise IndexError(f"no journal entry {index}")
+    tmp = path.with_suffix(".tmp")
+    tmp.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    tmp.replace(path)

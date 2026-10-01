@@ -1,4 +1,6 @@
-from data.journal import load_entries, save_entry
+import pytest
+
+from data.journal import load_entries, save_entry, update_entry
 
 
 def test_round_trip_keeps_order(tmp_path):
@@ -28,3 +30,17 @@ def test_segments_round_trip_per_ticker(tmp_path):
     save_segments("TSCO.L", rows, tmp_path)
     assert load_segments("TSCO.L", tmp_path) == rows
     assert load_segments("AAPL", tmp_path) is None
+
+
+def test_update_changes_one_entry_and_keeps_damaged_lines(tmp_path):
+    path = tmp_path / "j.jsonl"
+    save_entry({"ticker": "AAPL", "price": 336.0, "note": ""}, path)
+    with path.open("a") as f:
+        f.write("{not json\n")
+    save_entry({"ticker": "KO", "price": 70.0, "note": "old"}, path)
+    update_entry(1, {"note": "new", "decision": "Pass"}, path)
+    assert load_entries(path)[1] == {"ticker": "KO", "price": 70.0, "note": "new", "decision": "Pass"}
+    assert load_entries(path)[0]["ticker"] == "AAPL"
+    assert "{not json" in path.read_text()
+    with pytest.raises(IndexError):
+        update_entry(5, {"note": "x"}, path)

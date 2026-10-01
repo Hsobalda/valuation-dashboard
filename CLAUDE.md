@@ -85,9 +85,19 @@ fiscal years.
 
 _Last updated: 2026-09-30_
 
-- Latest merged work: portfolio sizing (stock pie sizing tool, PR #2,
-  `aa2fcc8`) — risk budgets tilted by conviction and volatility, with per-stock
-  and per-sector caps.
-- Working tree: clean except an untracked `portfolio-sizing.bundle` (a git
-  bundle artifact from that merge, not yet reviewed for removal).
-- No open threads or known bugs at this checkpoint.
+- Latest work: data-consistency fixes found while valuing NVDA. SEC share
+  counts and EPS are now split-adjusted (`data/edgar.py`), panels D and E and
+  the seeds use the latest unbroken run of cash-flow years when the SEC data
+  has holes, and trailing multiples (Panel F and comps) use the last twelve
+  months instead of the last fiscal year. Forward EPS for London listings that
+  report in dollars or euros is no longer converted twice.
+- Journal calls can now be edited (decision and thesis only) from section 6;
+  price, fair value and assumptions stay as saved.
+- Known limits: capex for years a company filed under its own XBRL label
+  (NVDA FY2013-21) isn't in the SEC feed, so free cash flow is blank there.
+  EPS history isn't split-adjusted when the filings carry no share count to
+  confirm the split (GOOGL before 2020); nothing reads that history yet.
+- Open question: the bear/bull growth swing is a flat +/-3 points, which is
+  barely a bear case for a company growing 90% a year. Not changed yet.
+- Untracked `portfolio-sizing.bundle` (a git bundle from the sizing merge) is
+  still in the working tree, not reviewed for removal.

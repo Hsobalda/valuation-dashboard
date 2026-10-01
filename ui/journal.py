@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import datetime as dt
+
 import pandas as pd
 import streamlit as st
 
-from data.journal import journal_path, load_entries, save_entry
+from data.journal import journal_path, load_entries, save_entry, update_entry
 from engine.track_record import scorecard, track_record
 
 
@@ -53,6 +55,8 @@ def render_history(provider, ticker: str) -> None:
         "Thesis": rec["note"],
     }).iloc[::-1], hide_index=True, width="stretch")
 
+    render_edit_form([(i, e) for i, e in enumerate(entries) if show_all or e["ticker"] == ticker])
+
     card = scorecard(rec)
     st.dataframe(pd.DataFrame({
         "Calls": card["calls"],
@@ -63,3 +67,26 @@ def render_history(provider, ticker: str) -> None:
         "judge the model after dozens of calls held for 6-12 months or more, and compare with "
         "what an index fund returned over the same period."
     )
+
+
+def render_edit_form(numbered: list[tuple[int, dict]]) -> None:
+    """Edit the decision and thesis of a saved call. The numbers stay as saved."""
+    with st.expander("Edit a saved call", icon=":material/edit:"):
+        i, e = st.selectbox(
+            "Call", numbered[::-1], key="journal:edit_pick",
+            format_func=lambda ie: f"{ie[1]['date']} · {ie[1]['ticker']} · {ie[1].get('decision', '')}",
+        )
+        with st.form(f"journal:edit:{i}"):
+            decision = st.segmented_control("Decision", ["Buy", "Watch", "Pass"],
+                                            default=e.get("decision") or "Watch")
+            note = st.text_area("Thesis", value=e.get("note", ""), height=300)
+            if st.form_submit_button("Save changes", icon=":material/save:"):
+                update_entry(i, {"decision": decision or e.get("decision", "Watch"), "note": note.strip(),
+                                 "edited": dt.date.today().isoformat()})
+                st.success(f"Updated the {e['date']} {e['ticker']} call.")
+                st.rerun()
+        st.caption(
+            "Price, fair value and assumptions stay as saved: the journal records what you "
+            "thought at the time, so hindsight can't rewrite it. If your view of the value "
+            "changes, save a new valuation instead."
+        )
