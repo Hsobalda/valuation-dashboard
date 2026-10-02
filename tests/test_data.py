@@ -191,3 +191,14 @@ def test_foreign_us_listings_are_not_converted():
     assert is_foreign_us_listing("Taiwan", "USD")          # TSMC's ADR
     assert not is_foreign_us_listing("United Kingdom", "GBP")  # Shell in London
     assert not is_foreign_us_listing("United States", "USD")
+
+
+def test_share_count_covers_every_share_class():
+    from data.provider import YFinanceProvider
+
+    info = {"currency": "USD", "financialCurrency": "USD", "currentPrice": 338.0,
+            "marketCap": 4.13e12, "sharesOutstanding": 5.87e9, "impliedSharesOutstanding": 12.23e9}
+    p = YFinanceProvider()
+    p._yf = type("yf", (), {"Ticker": staticmethod(lambda t: type("T", (), {"info": info})())})
+    p._fx_cache["GOOGL"] = 1.0
+    assert p.market_data("GOOGL")["shares_outstanding"] == 12.23e9  # Class A alone halves it
