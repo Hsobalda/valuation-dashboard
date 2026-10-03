@@ -11,7 +11,7 @@ import pandas as pd
 
 from engine.wacc import cost_of_equity, wacc
 
-from .panels import _col, _fcf, _latest_run, reinvestment_history, roic_history
+from .panels import _col, _fcf, _latest_run, backlog_history, reinvestment_history, roic_history
 
 HURDLE_RATE = 0.10  # your required return: a buy test, not a valuation input
 RISK_FREE = 0.04
@@ -106,6 +106,8 @@ def derive_starting_assumptions(provider, ticker: str) -> dict:
     reinvest_rate = float(reinvest_rate.mean()) if reinvest_rate.size else float("nan")
 
     unc = uncertainty_rating(provider, ticker)
+    backlog = backlog_history(provider, ticker)
+    backlog = backlog.iloc[-1] if not backlog.empty and backlog.iloc[-1]["years_of_revenue"] >= 0.1 else None
 
     return {
         "growth_y1": g1,
@@ -133,6 +135,8 @@ def derive_starting_assumptions(provider, ticker: str) -> dict:
             "consensus": (g1, g2, cons["analysts"]) if has_consensus else None,
             "reinvestment_rate": reinvest_rate,
             "fundamental": reinvest_rate * roic,
+            "backlog_years": float(backlog["years_of_revenue"]) if backlog is not None else None,
+            "backlog_growth": float(backlog["growth"]) if backlog is not None else None,
         },
         "provenance": {
             "growth_y1": source,

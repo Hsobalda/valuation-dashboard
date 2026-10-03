@@ -56,6 +56,8 @@ BALANCE_TAGS = {
                            "StockholdersEquityIncludingPortionAttributableToNoncontrollingInterest"],
     "minority_interest": ["MinorityInterest"],
     "goodwill": ["Goodwill"],
+    # contracted revenue not yet delivered (order backlog); Yahoo doesn't report it
+    "backlog": ["RevenueRemainingPerformanceObligation"],
     # explicitly non-current marketable securities: cash-like, but outside cash
     # and short-term investments (Apple holds ~$78bn)
     "long_term_investments": ["MarketableSecuritiesNoncurrent", "AvailableForSaleSecuritiesDebtSecuritiesNoncurrent"],

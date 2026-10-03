@@ -19,7 +19,9 @@ The app runs top to bottom in seven sections.
    pay against dividends and buybacks, share count trend); risk flags; current
    multiples; and insider trading from SEC Form 4 filings (filed within two
    business days), with open-market purchases separated from routine activity
-   and from sales under pre-arranged 10b5-1 plans.
+   and from sales under pre-arranged 10b5-1 plans; and the order backlog
+   (contracted revenue not yet delivered) in years of revenue, where the
+   company reports one (GE Vernova's covers about four years).
 2. Assumptions: a revenue growth path (years 1-2 from analyst consensus, year 5
    your view) with a cross-check of historical, consensus and fundamental growth
    (reinvestment rate × ROIC); current and target margin; return on capital; fade
@@ -196,6 +198,8 @@ TSMC's) is left out instead, since one ADR can represent several home shares.
   parsed for the transaction code (P = open-market purchase, S = sale, and
   routine codes for awards, option exercises and tax withholding) and the 10b5-1
   plan flag.
+- Order backlog is the remaining performance obligations figure in the same SEC
+  filings data.
 - Everything else (prices, market data, analyst estimates and targets, and
   statements for non-US companies) comes from Yahoo Finance via `yfinance`.
 - Offline, the app falls back to bundled sample data for AAPL, MSFT, PEP, T

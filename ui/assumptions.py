@@ -66,6 +66,11 @@ def render_assumption_panel(seed: dict, ticker: str) -> Assumptions:
                     f"fundamental {ev['fundamental']:.1%} (reinvests {ev['reinvestment_rate']:.0%} "
                     f"of NOPAT in net capex × {seed['roic']:.0%} ROIC)"
                 )
+            if ev.get("backlog_years"):
+                parts.append(
+                    f"backlog {ev['backlog_years']:.1f} years of revenue"
+                    + (f" ({ev['backlog_growth']:+.0%} last year)" if ev["backlog_growth"] == ev["backlog_growth"] else "")
+                )
             st.caption("Growth cross-check: " + " · ".join(parts))
     with col2:
         ebit_margin = _pct_slider(
