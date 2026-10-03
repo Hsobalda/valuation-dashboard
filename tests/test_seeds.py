@@ -80,3 +80,30 @@ def test_moat_rating_from_roic_against_cost_of_capital():
     none = moat_rating(pd.Series([0.05, 0.09, 0.04, 0.06, 0.03]), 0.08)
     assert (wide["fade_years"], narrow["fade_years"], none["fade_years"]) == (20, 10, 5)
     assert "5 of 5 years" in wide["reason"]
+
+
+def test_history_warning_for_short_or_loss_making_records():
+    import pandas as pd
+
+    from brief.seeds import _history_warning
+
+    four_years = pd.Series([-0.10, -0.03, 0.01, 0.04], index=[2022, 2023, 2024, 2025])
+    w = _history_warning(four_years, float(four_years.median()))
+    assert "only 4 years" in w and "a loss" in w
+    decade = pd.Series([0.2] * 10, index=range(2016, 2026))
+    assert _history_warning(decade, 0.2) == ""
+
+
+def test_tax_rate_seed_not_below_global_minimum():
+    import pandas as pd
+
+    from brief import derive_starting_assumptions
+    from data.provider import SampleProvider
+
+    p = SampleProvider()
+    inc = p.income_statement("AAPL").copy()
+    inc["income_tax"] = 0.0  # one-off credits wiping out the tax charge
+    p.income_statement = lambda t, period="annual": inc
+    seed = derive_starting_assumptions(p, "AAPL")
+    assert seed["tax_rate"] == 0.15
+    assert "global minimum" in seed["provenance"]["tax_rate"]

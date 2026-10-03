@@ -38,6 +38,8 @@ def render_assumption_panel(seed: dict, ticker: str) -> Assumptions:
     prov = seed.get("provenance", {})
 
     st.markdown("### 2. Assumptions (each anchored to the evidence above)")
+    if seed.get("history_warning"):
+        st.warning(seed["history_warning"], icon=":material/history:")
 
     col1, col2, col3 = st.columns(3)
     with col1:
@@ -65,6 +67,11 @@ def render_assumption_panel(seed: dict, ticker: str) -> Assumptions:
                 parts.append(
                     f"fundamental {ev['fundamental']:.1%} (reinvests {ev['reinvestment_rate']:.0%} "
                     f"of NOPAT in net capex × {seed['roic']:.0%} ROIC)"
+                )
+            if ev.get("backlog_years"):
+                parts.append(
+                    f"backlog {ev['backlog_years']:.1f} years of revenue"
+                    + (f" ({ev['backlog_growth']:+.0%} last year)" if ev["backlog_growth"] == ev["backlog_growth"] else "")
                 )
             st.caption("Growth cross-check: " + " · ".join(parts))
     with col2:

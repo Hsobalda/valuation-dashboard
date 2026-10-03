@@ -19,7 +19,9 @@ The app runs top to bottom in seven sections.
    pay against dividends and buybacks, share count trend); risk flags; current
    multiples; and insider trading from SEC Form 4 filings (filed within two
    business days), with open-market purchases separated from routine activity
-   and from sales under pre-arranged 10b5-1 plans.
+   and from sales under pre-arranged 10b5-1 plans; and the order backlog
+   (contracted revenue not yet delivered) in years of revenue, where the
+   company reports one (GE Vernova's covers about four years).
 2. Assumptions: a revenue growth path (years 1-2 from analyst consensus, year 5
    your view) with a cross-check of historical, consensus and fundamental growth
    (reinvestment rate × ROIC); current and target margin; return on capital; fade
@@ -124,8 +126,17 @@ the market pays today, which makes the terminal assumption easy to challenge.
 Starting assumptions come from the company's history with guards against
 distorted years: historical and year-5 growth seeds are capped at 15%, the tax
 rate is the median over the last five profitable years (one year is often
-distorted by one-off items; a decade can reach back to a different tax regime),
-and with no positive ROIC history the ROIC seed is the cost of capital.
+distorted by one-off items; a decade can reach back to a different tax regime)
+with a 15% floor, the global minimum tax on large companies, since a median near
+zero comes from one-off credits (IBM, Pfizer), and with no positive ROIC history
+the ROIC seed is the cost of capital.
+
+When the starting assumptions rest on fewer than five years of financial
+statements, or on a record whose median operating margin is a loss, the app
+warns that the seeded target margin, moat and uncertainty are weak evidence.
+That covers recent spin-offs and turnarounds (GE Vernova has four years, mostly
+loss-making, which would pull the target margin the wrong way) and every non-US
+company, for which Yahoo provides about four years.
 
 Fair value is the probability-weighted value of bear, base and bull cases
 (25/50/25 by default), each floored at zero since shareholders can't lose more
@@ -142,7 +153,10 @@ Deere) get a warning: the finance arm's debt sits in net debt but the customer
 loans it funds aren't counted, so the DCF understates the equity. Energy and
 Basic Materials companies (oil, gas, mining, metals) get a warning too: they
 don't set the price of what they sell, so real revenue and margins swing with
-the commodity cycle in ways a straight-line growth path can't capture.
+the commodity cycle in ways a straight-line growth path can't capture. Independent
+power producers (Constellation, Vistra) get the same warning: they sell
+electricity at market prices, and their hedging gains and losses run through
+operating income.
 
 The discount rate has a 6% floor. A low beta and heavy, cheap debt can blend
 to an implausibly low WACC (Verizon's raw blend came out near 5%), and cheap
@@ -193,6 +207,13 @@ TSMC's) is left out instead, since one ADR can represent several home shares.
   parsed for the transaction code (P = open-market purchase, S = sale, and
   routine codes for awards, option exercises and tax withholding) and the 10b5-1
   plan flag.
+- Order backlog is the remaining performance obligations figure in the same SEC
+  filings data: revenue customers have contracted for but not yet received. It
+  is shown in years of revenue, and only described as meaningful above a tenth
+  of a year, since product sellers report almost none (Nvidia's is about 1%).
+- Share counts cover every share class. Yahoo's share count for GOOGL is the
+  Class A count only (5.9bn of 12.2bn shares), which doubled Alphabet's value per
+  share, so the app uses Yahoo's total across classes, which matches market cap.
 - Everything else (prices, market data, analyst estimates and targets, and
   statements for non-US companies) comes from Yahoo Finance via `yfinance`.
 - Offline, the app falls back to bundled sample data for AAPL, MSFT, PEP, T
@@ -250,8 +271,11 @@ tests/        pytest suite
 Built by Oliver Baldaro, second-year Economics student at the University of
 Liverpool. I designed the valuation methodology and used AI-assisted
 development to write most of the code, then audited it myself: the commit
-history includes a cash-double-count bug and a comps benchmarking error I
-found and fixed during review. This is an active project I keep researching
+history includes bugs I found and fixed during review: a cash double count, a
+comps benchmarking error, share counts and EPS left unadjusted for stock splits
+in older SEC filings (Nvidia's share count appeared to grow 80% a year), and an
+Alphabet share count covering one share class of three, which doubled its value
+per share. This is an active project I keep researching
 and improving as I learn more about how professional valuation models are
 built.
 

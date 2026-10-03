@@ -142,10 +142,15 @@ def captive_finance_likely(info: dict) -> bool:
 # and margins swing with a price it doesn't set (oil, copper, gold), not with
 # the demand-driven growth the model's reinvestment logic assumes.
 _CYCLICAL_COMMODITY_SECTORS = ("Energy", "Basic Materials")
+# power generators sell electricity at market prices, and their hedging gains and
+# losses run through operating income (Constellation's margin swings ±87% of its
+# average), unlike regulated utilities, which earn a set return
+_CYCLICAL_COMMODITY_INDUSTRIES = ("Utilities - Independent Power Producers",)
 
 
 def cyclical_commodity_likely(info: dict) -> bool:
-    return (info.get("sector") or "") in _CYCLICAL_COMMODITY_SECTORS
+    return ((info.get("sector") or "") in _CYCLICAL_COMMODITY_SECTORS
+            or (info.get("industry") or "") in _CYCLICAL_COMMODITY_INDUSTRIES)
 
 
 def screen_peers(target: dict, candidates: list[dict]) -> list[dict]:
@@ -256,6 +261,46 @@ def reinvestment_history(provider, ticker: str) -> pd.DataFrame:
     df["net_capex"] = df["capex"] - df["da"]
     df["net_capex_pct_nopat"] = df["net_capex"] / df["nopat"].where(df["nopat"] > 0)
     return df
+
+
+def backlog_history(provider, ticker: str) -> pd.DataFrame:
+    """Order backlog by fiscal year end, against that year's revenue.
+
+    Backlog (remaining performance obligations) is revenue already under
+    contract but not yet delivered, so it is evidence about future growth that
+    the income statement can't show. Empty when the company reports none.
+    """
+    backlog = _col(provider.balance_sheet(ticker), "backlog").dropna()
+    backlog = backlog[backlog > 0]
+    if backlog.empty:
+        return pd.DataFrame()
+    revenue = _col(provider.income_statement(ticker), "revenue").reindex(backlog.index)
+    return pd.DataFrame({
+        "backlog": backlog,
+        "growth": backlog.pct_change(fill_method=None),
+        "years_of_revenue": backlog / revenue.where(revenue > 0),
+    })
+
+
+def panel_backlog(provider, ticker: str) -> dict:
+    hist = backlog_history(provider, ticker)
+    latest = hist.iloc[-1] if not hist.empty else None
+    # under ~10% of a year's revenue: a business that mostly sells product
+    # (Nvidia's is ~1%), so backlog says little about its growth
+    meaningful = latest is not None and latest["years_of_revenue"] >= 0.1
+    return {
+        "title": "H. What's already booked?",
+        "decision": "growth inputs (how much of the forecast is already under contract)",
+        "history": hist,
+        "meaningful": meaningful,
+        "what_this_means": (
+            "Backlog is revenue customers have signed for but not yet received. Several years "
+            "of revenue under contract, and growing, backs a growth forecast that history alone "
+            "can't. It says nothing about profit: an order can be loss-making, so judge the "
+            "margin separately. Not every business reports a useful backlog (product sellers "
+            "and power producers mostly don't)."
+        ),
+    }
 
 
 def panel_quality(provider, ticker: str, reference_wacc: float) -> dict:
@@ -507,4 +552,5 @@ def build_brief(provider, ticker: str, reference_wacc: float) -> dict:
         "capital_allocation": panel_capital_allocation(provider, ticker),
         "risk": panel_risk(provider, ticker),
         "priced_in": panel_priced_in(provider, ticker),
+        "backlog": panel_backlog(provider, ticker),
     }

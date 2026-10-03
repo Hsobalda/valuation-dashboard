@@ -359,7 +359,10 @@ class YFinanceProvider:
             "pe_forward_reported": float(info.get("forwardPE") or 0.0),
             "pb_reported": float(info.get("priceToBook") or 0.0),
             "market_cap": float(info.get("marketCap") or 0.0),
-            "shares_outstanding": float(info.get("sharesOutstanding") or 0.0),
+            # all share classes: for Alphabet, sharesOutstanding counts only the
+            # listed class (5.9bn of 12.2bn), while the market cap counts them all
+            "shares_outstanding": float(info.get("impliedSharesOutstanding")
+                                        or info.get("sharesOutstanding") or 0.0),
         }
 
     def peer_profile(self, ticker: str) -> dict:

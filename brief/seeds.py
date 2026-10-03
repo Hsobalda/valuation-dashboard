@@ -11,7 +11,7 @@ import pandas as pd
 
 from engine.wacc import cost_of_equity, wacc
 
-from .panels import _col, _fcf, _latest_run, reinvestment_history, roic_history
+from .panels import _col, _fcf, _latest_run, backlog_history, reinvestment_history, roic_history
 
 HURDLE_RATE = 0.10  # your required return: a buy test, not a valuation input
 RISK_FREE = 0.04
@@ -33,6 +33,33 @@ def _latest(df, field):
         return 0.0
     s = df[field].dropna()
     return float(s.iloc[-1]) if s.size else 0.0
+
+
+MIN_SEED_HISTORY = 5
+MIN_TAX_RATE = 0.15  # OECD global minimum tax on large companies (Pillar Two)
+
+
+def _history_warning(margins: pd.Series, median_margin: float) -> str:
+    """Why the evidence-based starting points may mislead, or "" if they're fine.
+
+    The target margin, moat and uncertainty seeds all lean on history. A recent
+    spin-off or a turnaround (GE Vernova: four years, mostly losses) has too
+    little of it, or history that pulls the margin the wrong way.
+    """
+    reasons = []
+    if 0 < margins.size < MIN_SEED_HISTORY:
+        reasons.append(f"only {margins.size} years of history (FY{margins.index[0]}-FY{margins.index[-1]})")
+    if margins.size and median_margin <= 0:
+        reasons.append(f"a median operating margin of {median_margin:.1%}, a loss")
+    if not reasons:
+        return ""
+    return (
+        "The starting target margin, moat and uncertainty rest on " + " and ".join(reasons)
+        + ", so treat them as weak evidence. Non-US companies only get Yahoo's few years; a "
+        "spin-off or turnaround has a record that can pull the margin target the wrong way. Set "
+        "the target margin from management's guidance or a mature peer if the business has "
+        "changed, and judge the moat on the product rather than this short record."
+    )
 
 
 def derive_starting_assumptions(provider, ticker: str) -> dict:
@@ -77,6 +104,7 @@ def derive_starting_assumptions(provider, ticker: str) -> dict:
     median_margin = float(margins.median()) if margins.size else ebit_margin
     target_margin = (ebit_margin + median_margin) / 2
     ebit_margin, target_margin = (min(max(m, -0.30), 0.75) for m in (ebit_margin, target_margin))
+    history_warning = _history_warning(margins, median_margin)
     # bear/bull margin swing: how much the margin has actually moved, at least 2pp
     margin_swing = min(max(float(margins.std()) if margins.size >= 3 else 0.0, 0.02), 0.10)
 
@@ -86,7 +114,10 @@ def derive_starting_assumptions(provider, ticker: str) -> dict:
     # below today's)
     pretax, tax = _col(inc, "pretax_income"), _col(inc, "income_tax")
     rates = (tax / pretax)[pretax > 0].dropna().tail(5)
-    tax_rate = min(max(float(rates.median()), 0.0), 0.40) if rates.size else 0.21
+    # floored at the 15% global minimum tax: a median near zero comes from one-off
+    # credits (IBM, Pfizer, GE Vernova), not a rate the business will pay for decades
+    median_tax = float(rates.median()) if rates.size else 0.21
+    tax_rate = min(max(median_tax, MIN_TAX_RATE), 0.40)
 
     # discount rate: the company's cost of capital, so fair value is what the
     # business is worth to the market; your own required return is a buy test
@@ -106,6 +137,8 @@ def derive_starting_assumptions(provider, ticker: str) -> dict:
     reinvest_rate = float(reinvest_rate.mean()) if reinvest_rate.size else float("nan")
 
     unc = uncertainty_rating(provider, ticker)
+    backlog = backlog_history(provider, ticker)
+    backlog = backlog.iloc[-1] if not backlog.empty and backlog.iloc[-1]["years_of_revenue"] >= 0.1 else None
 
     return {
         "growth_y1": g1,
@@ -125,6 +158,7 @@ def derive_starting_assumptions(provider, ticker: str) -> dict:
         "margin_swing": margin_swing,
         "tail_probability": 0.25,
         "uncertainty": unc["rating"],
+        "history_warning": history_warning,
         "uncertainty_mos": UNCERTAINTY_MOS,
         "margin_of_safety": UNCERTAINTY_MOS[unc["rating"]],
         "wacc_reference": ref,
@@ -133,6 +167,8 @@ def derive_starting_assumptions(provider, ticker: str) -> dict:
             "consensus": (g1, g2, cons["analysts"]) if has_consensus else None,
             "reinvestment_rate": reinvest_rate,
             "fundamental": reinvest_rate * roic,
+            "backlog_years": float(backlog["years_of_revenue"]) if backlog is not None else None,
+            "backlog_growth": float(backlog["growth"]) if backlog is not None else None,
         },
         "provenance": {
             "growth_y1": source,
@@ -162,6 +198,8 @@ def derive_starting_assumptions(provider, ticker: str) -> dict:
                 "so growth neither creates nor destroys value"
             ),
             "tax_rate": (f"median effective tax rate over {rates.size} profitable years"
+                         + (f" ({median_tax:.1%}), raised to the 15% global minimum tax: a rate that low "
+                            "comes from one-off credits" if median_tax < MIN_TAX_RATE else "")
                          if rates.size else "no profitable years: US federal rate of 21%"),
             "fade_years": moat["reason"],
             "terminal_growth": "default: long-run nominal GDP growth, typically 2-3%",

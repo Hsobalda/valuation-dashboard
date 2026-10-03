@@ -83,13 +83,18 @@ fiscal years.
 
 ## Status
 
-_Last updated: 2026-10-01_
+_Last updated: 2026-10-03_
 
-- Latest work: data-consistency fixes found while valuing NVDA (split-adjusted
-  SEC share counts and EPS in `data/edgar.py`, gap-aware cash-flow panels and
-  seeds, trailing-twelve-month multiples, no double FX conversion of forward
-  EPS for London listings). Journal calls can be edited (decision and thesis
-  only) from section 6, on any page.
+- Latest work (PR #3): share count covers every share class (Alphabet had been
+  valued ~2x too high; Novo, Meta and Visa less); order backlog panel H from SEC
+  remaining performance obligations, also in the growth cross-check; commodity
+  warning extended to independent power producers; warning when seeds rest on
+  fewer than five years of statements or a loss-making median margin; seeded tax
+  rate floored at the 15% global minimum. Earlier: split-adjusted SEC share
+  counts and EPS, gap-aware cash-flow panels, trailing-twelve-month multiples,
+  editable journal calls. 139 tests.
+- Known limit: Visa's diluted/basic ratio (1.13) likely double counts its other
+  share classes.
 - Journal (local, git-ignored) holds calls on JD.L, IMB.L, NVDA, CTSH, ACN and
   2330.TW. Theses are short and in the user's voice. Open points the user
   still has to fix in their own notes: IMB.L is marked Buy but fails the

@@ -213,6 +213,20 @@ with st.expander("G. What are insiders doing? (SEC Form 4, last 6 months)", expa
             f"[{ticker} on Dataroma](https://www.dataroma.com/m/stock.php?sym={ticker})"
         )
 
+h = brief["backlog"]
+if not h["history"].empty:
+    with st.expander("H. What's already booked? (order backlog)", expanded=h["meaningful"]):
+        hist = h["history"]
+        st.dataframe(pd.DataFrame({
+            f"Backlog ({info.get('currency', '')} bn)": [f"{v / 1e9:,.1f}" for v in hist["backlog"]],
+            "Change": [fmt_pct(v) for v in hist["growth"]],
+            "Years of revenue": ["—" if v != v else f"{v:.1f}" for v in hist["years_of_revenue"]],
+        }, index=[f"FY{y}" for y in hist.index]).T, width="stretch")
+        if not h["meaningful"]:
+            st.caption("Backlog is under a tenth of a year's revenue: this business mostly sells "
+                       "product as it's ordered, so backlog says little about its growth.")
+        st.caption("Decision this feeds: " + h["decision"] + " · " + h["what_this_means"])
+
 # --- 2. assumptions + 3. valuation ------------------------------------------
 
 ccy = info.get("currency", "")
