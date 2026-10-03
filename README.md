@@ -208,7 +208,12 @@ TSMC's) is left out instead, since one ADR can represent several home shares.
   routine codes for awards, option exercises and tax withholding) and the 10b5-1
   plan flag.
 - Order backlog is the remaining performance obligations figure in the same SEC
-  filings data.
+  filings data: revenue customers have contracted for but not yet received. It
+  is shown in years of revenue, and only described as meaningful above a tenth
+  of a year, since product sellers report almost none (Nvidia's is about 1%).
+- Share counts cover every share class. Yahoo's share count for GOOGL is the
+  Class A count only (5.9bn of 12.2bn shares), which doubled Alphabet's value per
+  share, so the app uses Yahoo's total across classes, which matches market cap.
 - Everything else (prices, market data, analyst estimates and targets, and
   statements for non-US companies) comes from Yahoo Finance via `yfinance`.
 - Offline, the app falls back to bundled sample data for AAPL, MSFT, PEP, T
@@ -266,8 +271,11 @@ tests/        pytest suite
 Built by Oliver Baldaro, second-year Economics student at the University of
 Liverpool. I designed the valuation methodology and used AI-assisted
 development to write most of the code, then audited it myself: the commit
-history includes a cash-double-count bug and a comps benchmarking error I
-found and fixed during review. This is an active project I keep researching
+history includes bugs I found and fixed during review: a cash double count, a
+comps benchmarking error, share counts and EPS left unadjusted for stock splits
+in older SEC filings (Nvidia's share count appeared to grow 80% a year), and an
+Alphabet share count covering one share class of three, which doubled its value
+per share. This is an active project I keep researching
 and improving as I learn more about how professional valuation models are
 built.
 
