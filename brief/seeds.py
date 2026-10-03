@@ -35,6 +35,32 @@ def _latest(df, field):
     return float(s.iloc[-1]) if s.size else 0.0
 
 
+MIN_SEED_HISTORY = 5
+
+
+def _history_warning(margins: pd.Series, median_margin: float) -> str:
+    """Why the evidence-based starting points may mislead, or "" if they're fine.
+
+    The target margin, moat and uncertainty seeds all lean on history. A recent
+    spin-off or a turnaround (GE Vernova: four years, mostly losses) has too
+    little of it, or history that pulls the margin the wrong way.
+    """
+    reasons = []
+    if 0 < margins.size < MIN_SEED_HISTORY:
+        reasons.append(f"only {margins.size} years of history (FY{margins.index[0]}-FY{margins.index[-1]})")
+    if margins.size and median_margin <= 0:
+        reasons.append(f"a median operating margin of {median_margin:.1%}, a loss")
+    if not reasons:
+        return ""
+    return (
+        "The starting target margin, moat and uncertainty rest on " + " and ".join(reasons)
+        + ", so treat them as weak evidence. Non-US companies only get Yahoo's few years; a "
+        "spin-off or turnaround has a record that can pull the margin target the wrong way. Set "
+        "the target margin from management's guidance or a mature peer if the business has "
+        "changed, and judge the moat on the product rather than this short record."
+    )
+
+
 def derive_starting_assumptions(provider, ticker: str) -> dict:
     # the last 10 years: roughly one business cycle, so seeds reflect today's
     # business rather than, say, Apple's early-iPhone growth
@@ -77,6 +103,7 @@ def derive_starting_assumptions(provider, ticker: str) -> dict:
     median_margin = float(margins.median()) if margins.size else ebit_margin
     target_margin = (ebit_margin + median_margin) / 2
     ebit_margin, target_margin = (min(max(m, -0.30), 0.75) for m in (ebit_margin, target_margin))
+    history_warning = _history_warning(margins, median_margin)
     # bear/bull margin swing: how much the margin has actually moved, at least 2pp
     margin_swing = min(max(float(margins.std()) if margins.size >= 3 else 0.0, 0.02), 0.10)
 
@@ -127,6 +154,7 @@ def derive_starting_assumptions(provider, ticker: str) -> dict:
         "margin_swing": margin_swing,
         "tail_probability": 0.25,
         "uncertainty": unc["rating"],
+        "history_warning": history_warning,
         "uncertainty_mos": UNCERTAINTY_MOS,
         "margin_of_safety": UNCERTAINTY_MOS[unc["rating"]],
         "wacc_reference": ref,

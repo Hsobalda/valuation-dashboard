@@ -38,6 +38,8 @@ def render_assumption_panel(seed: dict, ticker: str) -> Assumptions:
     prov = seed.get("provenance", {})
 
     st.markdown("### 2. Assumptions (each anchored to the evidence above)")
+    if seed.get("history_warning"):
+        st.warning(seed["history_warning"], icon=":material/history:")
 
     col1, col2, col3 = st.columns(3)
     with col1:

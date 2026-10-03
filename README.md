@@ -129,6 +129,13 @@ rate is the median over the last five profitable years (one year is often
 distorted by one-off items; a decade can reach back to a different tax regime),
 and with no positive ROIC history the ROIC seed is the cost of capital.
 
+When the starting assumptions rest on fewer than five years of financial
+statements, or on a record whose median operating margin is a loss, the app
+warns that the seeded target margin, moat and uncertainty are weak evidence.
+That covers recent spin-offs and turnarounds (GE Vernova has four years, mostly
+loss-making, which would pull the target margin the wrong way) and every non-US
+company, for which Yahoo provides about four years.
+
 Fair value is the probability-weighted value of bear, base and bull cases
 (25/50/25 by default), each floored at zero since shareholders can't lose more
 than they invest. Net debt is debt less cash, short-term investments and
