@@ -142,7 +142,10 @@ Deere) get a warning: the finance arm's debt sits in net debt but the customer
 loans it funds aren't counted, so the DCF understates the equity. Energy and
 Basic Materials companies (oil, gas, mining, metals) get a warning too: they
 don't set the price of what they sell, so real revenue and margins swing with
-the commodity cycle in ways a straight-line growth path can't capture.
+the commodity cycle in ways a straight-line growth path can't capture. Independent
+power producers (Constellation, Vistra) get the same warning: they sell
+electricity at market prices, and their hedging gains and losses run through
+operating income.
 
 The discount rate has a 6% floor. A low beta and heavy, cheap debt can blend
 to an implausibly low WACC (Verizon's raw blend came out near 5%), and cheap

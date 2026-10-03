@@ -142,10 +142,15 @@ def captive_finance_likely(info: dict) -> bool:
 # and margins swing with a price it doesn't set (oil, copper, gold), not with
 # the demand-driven growth the model's reinvestment logic assumes.
 _CYCLICAL_COMMODITY_SECTORS = ("Energy", "Basic Materials")
+# power generators sell electricity at market prices, and their hedging gains and
+# losses run through operating income (Constellation's margin swings ±87% of its
+# average), unlike regulated utilities, which earn a set return
+_CYCLICAL_COMMODITY_INDUSTRIES = ("Utilities - Independent Power Producers",)
 
 
 def cyclical_commodity_likely(info: dict) -> bool:
-    return (info.get("sector") or "") in _CYCLICAL_COMMODITY_SECTORS
+    return ((info.get("sector") or "") in _CYCLICAL_COMMODITY_SECTORS
+            or (info.get("industry") or "") in _CYCLICAL_COMMODITY_INDUSTRIES)
 
 
 def screen_peers(target: dict, candidates: list[dict]) -> list[dict]:

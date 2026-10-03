@@ -162,6 +162,9 @@ def test_cyclical_commodity_flagged_for_energy_and_materials():
     assert cyclical_commodity_likely({"sector": "Basic Materials"})
     assert not cyclical_commodity_likely({"sector": "Technology"})
     assert not cyclical_commodity_likely({})
+    # power generators are, regulated utilities aren't
+    assert cyclical_commodity_likely({"sector": "Utilities", "industry": "Utilities - Independent Power Producers"})
+    assert not cyclical_commodity_likely({"sector": "Utilities", "industry": "Utilities - Regulated Electric"})
 
 
 def test_net_debt_and_roic_survive_a_field_dropping_out_of_later_filings():
