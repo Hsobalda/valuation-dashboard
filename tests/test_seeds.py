@@ -92,3 +92,18 @@ def test_history_warning_for_short_or_loss_making_records():
     assert "only 4 years" in w and "a loss" in w
     decade = pd.Series([0.2] * 10, index=range(2016, 2026))
     assert _history_warning(decade, 0.2) == ""
+
+
+def test_tax_rate_seed_not_below_global_minimum():
+    import pandas as pd
+
+    from brief import derive_starting_assumptions
+    from data.provider import SampleProvider
+
+    p = SampleProvider()
+    inc = p.income_statement("AAPL").copy()
+    inc["income_tax"] = 0.0  # one-off credits wiping out the tax charge
+    p.income_statement = lambda t, period="annual": inc
+    seed = derive_starting_assumptions(p, "AAPL")
+    assert seed["tax_rate"] == 0.15
+    assert "global minimum" in seed["provenance"]["tax_rate"]

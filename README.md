@@ -126,8 +126,10 @@ the market pays today, which makes the terminal assumption easy to challenge.
 Starting assumptions come from the company's history with guards against
 distorted years: historical and year-5 growth seeds are capped at 15%, the tax
 rate is the median over the last five profitable years (one year is often
-distorted by one-off items; a decade can reach back to a different tax regime),
-and with no positive ROIC history the ROIC seed is the cost of capital.
+distorted by one-off items; a decade can reach back to a different tax regime)
+with a 15% floor, the global minimum tax on large companies, since a median near
+zero comes from one-off credits (IBM, Pfizer), and with no positive ROIC history
+the ROIC seed is the cost of capital.
 
 When the starting assumptions rest on fewer than five years of financial
 statements, or on a record whose median operating margin is a loss, the app

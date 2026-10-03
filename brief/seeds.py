@@ -36,6 +36,7 @@ def _latest(df, field):
 
 
 MIN_SEED_HISTORY = 5
+MIN_TAX_RATE = 0.15  # OECD global minimum tax on large companies (Pillar Two)
 
 
 def _history_warning(margins: pd.Series, median_margin: float) -> str:
@@ -113,7 +114,10 @@ def derive_starting_assumptions(provider, ticker: str) -> dict:
     # below today's)
     pretax, tax = _col(inc, "pretax_income"), _col(inc, "income_tax")
     rates = (tax / pretax)[pretax > 0].dropna().tail(5)
-    tax_rate = min(max(float(rates.median()), 0.0), 0.40) if rates.size else 0.21
+    # floored at the 15% global minimum tax: a median near zero comes from one-off
+    # credits (IBM, Pfizer, GE Vernova), not a rate the business will pay for decades
+    median_tax = float(rates.median()) if rates.size else 0.21
+    tax_rate = min(max(median_tax, MIN_TAX_RATE), 0.40)
 
     # discount rate: the company's cost of capital, so fair value is what the
     # business is worth to the market; your own required return is a buy test
@@ -194,6 +198,8 @@ def derive_starting_assumptions(provider, ticker: str) -> dict:
                 "so growth neither creates nor destroys value"
             ),
             "tax_rate": (f"median effective tax rate over {rates.size} profitable years"
+                         + (f" ({median_tax:.1%}), raised to the 15% global minimum tax: a rate that low "
+                            "comes from one-off credits" if median_tax < MIN_TAX_RATE else "")
                          if rates.size else "no profitable years: US federal rate of 21%"),
             "fade_years": moat["reason"],
             "terminal_growth": "default: long-run nominal GDP growth, typically 2-3%",
