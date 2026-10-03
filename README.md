@@ -269,15 +269,28 @@ tests/        pytest suite
 ## About
 
 Built by Oliver Baldaro, second-year Economics student at the University of
-Liverpool. I designed the valuation methodology and used AI-assisted
-development to write most of the code, then audited it myself: the commit
-history includes bugs I found and fixed during review: a cash double count, a
-comps benchmarking error, share counts and EPS left unadjusted for stock splits
-in older SEC filings (Nvidia's share count appeared to grow 80% a year), and an
-Alphabet share count covering one share class of three, which doubled its value
-per share. This is an active project I keep researching
-and improving as I learn more about how professional valuation models are
-built.
+Liverpool. I designed the valuation methodology (a three-stage DCF built on
+returns on capital, using up to 19 years of financials from SEC EDGAR for US
+companies and Yahoo Finance otherwise, with the historical evidence shown before
+any assumption), specified what the app should do, and audited the code and its
+outputs. The code was written with AI assistance.
+
+Reviewing the code and its outputs turned up errors that I fixed, each with a
+regression test:
+
+- cash counted twice in enterprise value, since net debt already deducts it;
+- the company being valued included in its own peer median, which pulled the
+  comps benchmark towards its current price;
+- share counts and EPS from older SEC filings not adjusted for stock splits, so
+  one share count showed growth of 80% a year when it had actually fallen 0.8% a
+  year;
+- multiples that divided today's price by the last reported fiscal year, which
+  can have ended a year or more earlier, instead of the trailing twelve months;
+- a share count covering one of a company's three share classes, which roughly
+  doubled its value per share.
+
+The test suite has 139 tests. This is an active project I keep researching and
+improving as I learn more about how professional valuation models are built.
 
 ## Disclaimer
 
