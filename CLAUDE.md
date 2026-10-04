@@ -62,12 +62,10 @@ fiscal years.
 ## Rules
 
 - This repo is public and read by finance professionals as part of an
-  internship application. Nothing should read as AI-generated: no bold
-  lead-in bullets, no slogan-style phrasing, no template tells, no
-  references to files or code that don't exist in the repo.
-- Do not add `Co-Authored-By: Claude` (or similar AI attribution) to commits
-  in this repo. Commits are authored as Oliver Baldaro
-  (258120641+Hsobalda@users.noreply.github.com).
+  internship application. Plain, specific wording; no slogans or template
+  phrasing. No references to files or code that don't exist in the repo.
+- Commits are authored as Oliver Baldaro, who reviews and pushes every
+  change. Never push without asking.
 - Commit messages are short and human: a concise subject line, at most a
   sentence or two of body. Not long structured multi-paragraph explanations.
 - When changing valuation logic, briefly explain the finance reasoning behind
