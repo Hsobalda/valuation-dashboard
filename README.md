@@ -254,6 +254,9 @@ the Excel export recalculated and compared with the engine, the SEC filing parse
 on tag changes and restatements, and cases for sparse data and misaligned fiscal
 years.
 
+Each error found in review, with the commit that fixed it and the test that now
+covers it, is listed in [docs/audit-log.md](docs/audit-log.md).
+
 ## Structure
 
 ```
