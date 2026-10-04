@@ -269,14 +269,18 @@ tests/        pytest suite
 ## About
 
 Built by Oliver Baldaro, second-year Economics student at the University of
-Liverpool. I designed the valuation methodology (a three-stage DCF built on
-returns on capital, using up to 19 years of financials from SEC EDGAR for US
-companies and Yahoo Finance otherwise, with the historical evidence shown before
-any assumption), specified what the app should do, and audited the code and its
-outputs. The code was written with AI assistance.
+Liverpool. The valuation methodology is a three-stage DCF built on returns on
+capital, using up to 19 years of financials from SEC EDGAR for US companies and
+Yahoo Finance otherwise, with the historical evidence shown before any
+assumption. The code was written with AI assistance.
 
-Reviewing the code and its outputs turned up errors that I fixed, each with a
-regression test:
+### How this is built
+
+I design the methodology and specify the features. Claude writes the code. I
+audit it and manage the repository.
+
+Auditing the code and its outputs turned up these errors, each now fixed and
+covered by a regression test:
 
 - cash counted twice in enterprise value, since net debt already deducts it;
 - the company being valued included in its own peer median, which pulled the
